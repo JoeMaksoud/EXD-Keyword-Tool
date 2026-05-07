@@ -424,14 +424,16 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     # Poll loop — UI stays responsive, stop button works
     status_placeholder  = st.empty()
     stop_placeholder    = st.empty()
+    poll_count = 0
 
     while thread.is_alive():
         with stop_placeholder.container():
-            if st.button("⏹ Stop generation", key="stop_live", type="secondary"):
+            if st.button("⏹ Stop generation", key=f"stop_live_{poll_count}", type="secondary"):
                 stop_event.set()
                 st.session_state.stop_requested = True
         with status_placeholder:
             st.info("⏳ Generating keywords... click Stop to cancel.")
+        poll_count += 1
         thread.join(timeout=2)
 
     stop_placeholder.empty()
