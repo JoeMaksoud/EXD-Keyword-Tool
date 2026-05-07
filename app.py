@@ -18,69 +18,113 @@ st.markdown("""
   html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
   .block-container { max-width: 800px; padding: 2rem 2rem 4rem; }
 
-  /* Section headers */
-  .section-header {
-    display: flex; align-items: center; gap: 12px;
-    margin: 2.5rem 0 1rem;
-  }
+  .section-hdr { display:flex; align-items:center; gap:12px; margin:2.5rem 0 1rem; }
   .section-num {
-    width: 28px; height: 28px; border-radius: 50%;
-    background: #333; color: #fff;
-    font-size: 13px; font-weight: 600;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
+    min-width:28px; height:28px; border-radius:50%;
+    background:#2a2a2a; color:#fff; font-size:13px; font-weight:600;
+    display:flex; align-items:center; justify-content:center;
   }
-  .section-title { font-size: 15px; font-weight: 600; color: #fff; }
-  .section-sub { font-size: 13px; color: #888; font-weight: 400; margin-left: 4px; }
+  .section-ttl { font-size:15px; font-weight:600; color:#fff; }
+  .section-sub { font-size:13px; color:#666; font-weight:400; }
 
-  /* Field cards (language + query type) — match input field dark bg */
-  .card-field {
+  /* ── Language & query type cards ───────────────────────────── */
+  /* The card is an HTML div, the button sits INSIDE the same visual block */
+  .selcard {
     background: #1e1e1e;
     border: 1.5px solid #333;
     border-radius: 10px;
-    padding: 12px 10px;
+    padding: 12px 8px 0px;
     text-align: center;
     cursor: pointer;
-    position: relative;
     transition: border-color 0.15s;
-    user-select: none;
+    margin-bottom: 0;
   }
-  .card-field:hover { border-color: #555; }
-  .card-field.active { border-color: #f97316; }
-  .card-field .tick {
-    position: absolute; top: 6px; right: 6px;
-    width: 18px; height: 18px; border-radius: 50%;
-    background: #fff; display: flex; align-items: center; justify-content: center;
-    font-size: 10px; color: #f97316; font-weight: 700;
-    display: none;
+  .selcard:hover { border-color: #666; }
+  .selcard.active { border-color: #f97316; }
+  .selcard .card-flag { font-size: 20px; margin-bottom: 3px; }
+  .selcard .card-name { font-size: 11px; font-weight: 600; color: #fff; }
+  .selcard .card-native { font-size: 10px; color: #666; margin-bottom: 6px; }
+  .selcard .card-tick {
+    font-size: 11px; color: #f97316; font-weight: 700;
+    min-height: 16px; margin-bottom: 4px;
   }
-  .card-field.active .tick { display: flex; }
+  .selcard .card-title { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+  .selcard .card-desc { font-size: 11px; color: #888; margin-bottom: 8px; line-height: 1.4; }
 
-  /* Tag pills */
+  /* The button inside a selcard is borderless and fills the card bottom */
+  .selcard + div div[data-testid="stButton"] > button {
+    background: transparent !important;
+    border: none !important;
+    border-top: 1px solid #2a2a2a !important;
+    border-radius: 0 0 10px 10px !important;
+    color: #888 !important;
+    font-size: 11px !important;
+    font-weight: 400 !important;
+    width: 100% !important;
+    padding: 5px !important;
+    margin: 0 !important;
+    cursor: pointer !important;
+  }
+  .selcard + div div[data-testid="stButton"] > button:hover {
+    background: #f97316 !important;
+    color: #fff !important;
+    border-top-color: #f97316 !important;
+  }
+
+  /* Tag pill */
   .tag-pill {
-    display: inline-flex; align-items: center; gap: 6px;
+    display: inline-block;
     background: #1e1e1e; border: 1px solid #333; border-radius: 20px;
-    padding: 5px 12px; font-size: 13px; color: #ddd;
-    margin: 4px;
+    padding: 5px 14px; font-size: 13px; color: #ddd; margin-top: 2px;
   }
-  .tag-x {
-    cursor: pointer; color: #888; font-size: 13px; line-height: 1;
-    background: none; border: none; padding: 0; font-family: inherit;
-    transition: color 0.1s;
+
+  /* ✕ remove button */
+  .rm-wrap div[data-testid="stButton"] > button {
+    background: transparent !important;
+    border: 1px solid #444 !important;
+    border-radius: 50% !important;
+    color: #888 !important;
+    font-size: 12px !important;
+    width: 26px !important;
+    min-width: 26px !important;
+    height: 26px !important;
+    padding: 0 !important;
+    margin-top: 4px !important;
   }
-  .tag-x:hover { color: #f97316; }
-  .tags-wrap { display: flex; flex-wrap: wrap; margin-top: 8px; }
-  .tag-empty { font-size: 13px; color: #555; margin-top: 8px; font-style: italic; }
+  .rm-wrap div[data-testid="stButton"] > button:hover {
+    border-color: #f97316 !important;
+    color: #f97316 !important;
+  }
+
+  /* + Add button */
+  .add-wrap div[data-testid="stButton"] > button {
+    background: #f97316 !important;
+    border: none !important;
+    border-radius: 8px !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    padding: 8px !important;
+    width: 100% !important;
+  }
+  .add-wrap div[data-testid="stButton"] > button:hover {
+    background: #ea6c0a !important;
+  }
 
   /* Generate button */
-  div[data-testid="stButton"] > button {
-    background: #f97316 !important; color: #fff !important;
-    border: none !important; border-radius: 10px !important;
-    padding: 0.75rem 1.5rem !important;
-    font-size: 15px !important; font-weight: 600 !important;
-    width: 100% !important; letter-spacing: 0.01em !important;
+  .gen-wrap div[data-testid="stButton"] > button {
+    background: #f97316 !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #fff !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    width: 100% !important;
+    padding: 0.75rem !important;
   }
-  div[data-testid="stButton"] > button:hover { background: #ea6c0a !important; }
+  .gen-wrap div[data-testid="stButton"] > button:hover {
+    background: #ea6c0a !important;
+  }
 
   /* Download buttons */
   div[data-testid="stDownloadButton"] > button {
@@ -88,14 +132,9 @@ st.markdown("""
     border: none !important; border-radius: 10px !important;
     font-weight: 600 !important; width: 100% !important;
   }
-  div[data-testid="stDownloadButton"] > button:hover { background: #ea6c0a !important; }
 
   hr { border-color: #2a2a2a !important; }
-  section[data-testid="stSidebar"] { background: #111; }
-
-  /* Hide streamlit branding */
-  #MainMenu { visibility: hidden; }
-  footer { visibility: hidden; }
+  #MainMenu, footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -106,7 +145,6 @@ MARKETS = {
     "United Kingdom":"uk","United States":"us","France":"fr",
     "Germany":"de","India":"in","China":"cn","Japan":"jp"
 }
-
 LANGUAGES = [
     {"code":"en","name":"English", "native":"English",  "flag":"🇬🇧"},
     {"code":"ar","name":"Arabic",  "native":"العربية",   "flag":"🇸🇦"},
@@ -116,17 +154,15 @@ LANGUAGES = [
     {"code":"zh","name":"Chinese", "native":"简体中文",  "flag":"🇨🇳"},
     {"code":"ja","name":"Japanese","native":"日本語",    "flag":"🇯🇵"},
 ]
-
 QTYPES = [
-    {"code":"direct",   "title":"Direct",   "desc":"Short, high-intent. 1–3 words."},
-    {"code":"longtail", "title":"Long-tail", "desc":"Specific phrases. 4–8 words."},
-    {"code":"mix",      "title":"Mix",       "desc":"Balanced blend of both."},
+    {"code":"direct",   "title":"Direct",   "desc":"Short, high-intent. 1–3 words. e.g. \"pure honey\""},
+    {"code":"longtail", "title":"Long-tail", "desc":"Specific phrases. 4–8 words. e.g. \"best raw honey for immunity\""},
+    {"code":"mix",      "title":"Mix",       "desc":"Balanced blend of short and long-tail queries"},
 ]
-
 QTYPE_INSTRUCTIONS = {
-    "direct":   "Generate SHORT HIGH-INTENT keywords only. Each must be 1-3 words maximum. Focus on product names, brand terms, and core category searches.",
-    "longtail": "Generate LONG-TAIL keywords only. Each must be 4-8 words. Focus on specific questions, comparisons, and use-case searches.",
-    "mix":      "Generate a MIX: roughly half 1-3 words (direct) and half 4-8 words (long-tail). Distribute naturally.",
+    "direct":   "Generate SHORT HIGH-INTENT keywords only. Each must be 1-3 words maximum.",
+    "longtail": "Generate LONG-TAIL keywords only. Each must be 4-8 words. Focus on specific questions and use-cases.",
+    "mix":      "Generate a MIX: roughly half 1-3 words (direct) and half 4-8 words (long-tail).",
 }
 
 # ── Session state ─────────────────────────────────────────────────
@@ -145,7 +181,7 @@ with st.sidebar:
     st.divider()
     st.markdown("**How to use**")
     st.caption("1. Fill in account setup")
-    st.caption("2. Select languages")
+    st.caption("2. Select one or more languages")
     st.caption("3. Choose keyword type")
     st.caption("4. Add tags")
     st.caption("5. Click Generate")
@@ -169,16 +205,14 @@ st.divider()
 # ══════════════════════════════════════════════════════════════════
 # SECTION 1 — Account Setup
 # ══════════════════════════════════════════════════════════════════
-st.markdown('<div class="section-header"><div class="section-num">1</div><div class="section-title">Account Setup</div></div>', unsafe_allow_html=True)
+st.markdown('<div class="section-hdr"><div class="section-num">1</div><div class="section-ttl">Account Setup</div></div>', unsafe_allow_html=True)
 
 c1, c2 = st.columns(2)
 with c1:
     client_name  = st.text_input("Client name", placeholder="e.g. Al Shifa Honey")
 with c2:
     market_label = st.selectbox("Target market", list(MARKETS.keys()), index=1)
-
 website = st.text_input("Client website", placeholder="https://www.alshifa.com  (optional — validates keyword relevance)")
-
 c3, c4 = st.columns(2)
 with c3:
     branded_count = st.number_input("Branded keywords", min_value=0, max_value=1000, value=10, step=1)
@@ -186,27 +220,43 @@ with c4:
     generic_count = st.number_input("Generic keywords",  min_value=0, max_value=1000, value=30, step=1)
 
 # ══════════════════════════════════════════════════════════════════
-# SECTION 2 — Languages (multi-select, no buttons under cards)
+# SECTION 2 — Languages
 # ══════════════════════════════════════════════════════════════════
-st.markdown('<div class="section-header"><div class="section-num">2</div><div class="section-title">Languages</div></div>', unsafe_allow_html=True)
+st.markdown('<div class="section-hdr"><div class="section-num">2</div><div class="section-ttl">Languages</div></div>', unsafe_allow_html=True)
+st.caption("Click to select — multiple languages supported.")
 
 lang_cols = st.columns(len(LANGUAGES))
 for i, lang in enumerate(LANGUAGES):
     with lang_cols[i]:
         is_active = lang["code"] in st.session_state.selected_langs
-        border_c  = "#f97316" if is_active else "#333"
-        tick_html = f'<div style="position:absolute;top:6px;right:6px;width:18px;height:18px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;color:#f97316;font-weight:700;">✓</div>' if is_active else ""
+        border    = "#f97316" if is_active else "#333"
+        tick      = "✓" if is_active else ""
+        # Card visual
         st.markdown(f"""
-        <div style="background:#1e1e1e;border:1.5px solid {border_c};border-radius:10px;
-            padding:12px 4px;text-align:center;position:relative;cursor:pointer;">
-            {tick_html}
+        <div style="background:#1e1e1e;border:1.5px solid {border};border-radius:10px 10px 0 0;
+            padding:12px 4px 8px;text-align:center;">
             <div style="font-size:20px">{lang['flag']}</div>
-            <div style="font-size:11px;font-weight:600;color:#fff;margin-top:4px">{lang['name']}</div>
-            <div style="font-size:10px;color:#888">{lang['native']}</div>
+            <div style="font-size:11px;font-weight:600;color:#fff;margin-top:3px">{lang['name']}</div>
+            <div style="font-size:10px;color:#666">{lang['native']}</div>
+            <div style="font-size:11px;color:#f97316;font-weight:700;min-height:16px;margin-top:4px">{tick}</div>
         </div>""", unsafe_allow_html=True)
-        # Invisible button over the card to capture click
-        if st.button(" ", key=f"lang_{lang['code']}", use_container_width=True,
-                     help=f"Select {lang['name']}"):
+        # Button sits flush below the card, styled to look like card bottom
+        btn_bg = "#f97316" if is_active else "#2a2a2a"
+        st.markdown(f"""<style>
+        div[data-testid="column"]:nth-of-type({i+1}) div[data-testid="stButton"] > button {{
+            background: {btn_bg} !important;
+            border: 1.5px solid {border} !important;
+            border-top: none !important;
+            border-radius: 0 0 10px 10px !important;
+            color: transparent !important;
+            font-size: 1px !important;
+            height: 12px !important;
+            padding: 6px !important;
+            width: 100% !important;
+            cursor: pointer !important;
+        }}
+        </style>""", unsafe_allow_html=True)
+        if st.button("x", key=f"lang_{lang['code']}", use_container_width=True):
             if lang["code"] in st.session_state.selected_langs:
                 if len(st.session_state.selected_langs) > 1:
                     st.session_state.selected_langs.remove(lang["code"])
@@ -214,45 +264,61 @@ for i, lang in enumerate(LANGUAGES):
                 st.session_state.selected_langs.append(lang["code"])
             st.rerun()
 
-# Show selected languages summary
 selected_lang_names = [l["name"] for l in LANGUAGES if l["code"] in st.session_state.selected_langs]
 if len(selected_lang_names) > 1:
-    st.caption(f"✓ {len(selected_lang_names)} languages selected — tool will generate keywords for each: {', '.join(selected_lang_names)}")
+    st.caption(f"✓ {len(selected_lang_names)} languages selected: {', '.join(selected_lang_names)}")
 
 # ══════════════════════════════════════════════════════════════════
-# SECTION 3 — Keyword Type (click card, orange border, no button)
+# SECTION 3 — Keyword Type
 # ══════════════════════════════════════════════════════════════════
-st.markdown('<div class="section-header"><div class="section-num">3</div><div class="section-title">Keyword Type</div></div>', unsafe_allow_html=True)
+st.markdown('<div class="section-hdr"><div class="section-num">3</div><div class="section-ttl">Keyword Type</div></div>', unsafe_allow_html=True)
 
 qt_cols = st.columns(3)
 for i, qt in enumerate(QTYPES):
     with qt_cols[i]:
         is_active = st.session_state.selected_qt == qt["code"]
-        border_c  = "#f97316" if is_active else "#333"
-        tick_html = f'<div style="position:absolute;top:6px;right:6px;width:18px;height:18px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;color:#f97316;font-weight:700;">✓</div>' if is_active else ""
+        border    = "#f97316" if is_active else "#333"
+        tick      = "✓" if is_active else ""
         st.markdown(f"""
-        <div style="background:#1e1e1e;border:1.5px solid {border_c};border-radius:10px;
-            padding:14px;min-height:90px;position:relative;cursor:pointer;">
-            {tick_html}
-            <div style="font-size:14px;font-weight:600;color:#fff">{qt['title']}</div>
-            <div style="font-size:11px;color:#888;margin-top:6px">{qt['desc']}</div>
+        <div style="background:#1e1e1e;border:1.5px solid {border};border-radius:10px 10px 0 0;
+            padding:14px 12px 8px;min-height:80px;">
+            <div style="font-size:13px;font-weight:600;color:#fff">{qt['title']}
+              <span style="font-size:11px;color:#f97316;font-weight:700;margin-left:6px">{tick}</span>
+            </div>
+            <div style="font-size:11px;color:#888;margin-top:5px;line-height:1.4">{qt['desc']}</div>
         </div>""", unsafe_allow_html=True)
-        if st.button(" ", key=f"qt_{qt['code']}", use_container_width=True,
-                     help=qt["title"]):
+        btn_bg = "#f97316" if is_active else "#2a2a2a"
+        st.markdown(f"""<style>
+        div[data-testid="column"]:nth-of-type({i+1}) div[data-testid="stButton"] > button {{
+            background: {btn_bg} !important;
+            border: 1.5px solid {border} !important;
+            border-top: none !important;
+            border-radius: 0 0 10px 10px !important;
+            color: transparent !important;
+            font-size: 1px !important;
+            height: 12px !important;
+            padding: 6px !important;
+            width: 100% !important;
+            cursor: pointer !important;
+        }}
+        </style>""", unsafe_allow_html=True)
+        if st.button("x", key=f"qt_{qt['code']}", use_container_width=True):
             st.session_state.selected_qt = qt["code"]
             st.rerun()
 
 # ══════════════════════════════════════════════════════════════════
-# SECTION 4 — Tags (single field, pill shows with X to remove)
+# SECTION 4 — Tags
 # ══════════════════════════════════════════════════════════════════
-st.markdown('<div class="section-header"><div class="section-num">4</div><div class="section-title">Tags</div></div>', unsafe_allow_html=True)
+st.markdown('<div class="section-hdr"><div class="section-num">4</div><div class="section-ttl">Tags</div></div>', unsafe_allow_html=True)
 
 tag_col, btn_col = st.columns([5, 1])
 with tag_col:
     new_tag = st.text_input("Add tag", placeholder="e.g. Honey, Royal Jelly, Supplements...",
                              label_visibility="collapsed", key="tag_input")
 with btn_col:
+    st.markdown('<div class="add-wrap">', unsafe_allow_html=True)
     add_clicked = st.button("+ Add", key="add_tag_btn", use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 if (add_clicked or new_tag) and new_tag.strip():
     tag_val = new_tag.strip()
@@ -260,36 +326,34 @@ if (add_clicked or new_tag) and new_tag.strip():
         st.session_state.nav_tags.append(tag_val)
         st.rerun()
 
-# Render tags inline — each pill has an X button right next to it
 if st.session_state.nav_tags:
-    # Build one HTML row of pills, each with a unique form key for the X
     for idx, tag in enumerate(st.session_state.nav_tags):
-        col_tag, col_x, col_spacer = st.columns([3, 0.5, 8])
-        with col_tag:
-            st.markdown(f"""
-            <div style="background:#1e1e1e;border:1px solid #333;border-radius:20px;
-                padding:6px 14px;font-size:13px;color:#ddd;display:inline-block;
-                white-space:nowrap;margin-top:4px;">
-                {tag}
-            </div>""", unsafe_allow_html=True)
-        with col_x:
-            if st.button("✕", key=f"rm_{idx}", help=f"Remove '{tag}'"):
+        pill_col, x_col, pad_col = st.columns([3, 0.5, 8])
+        with pill_col:
+            st.markdown(f'<div style="background:#1e1e1e;border:1px solid #333;border-radius:20px;padding:5px 14px;font-size:13px;color:#ddd;margin-top:4px;display:inline-block">{tag}</div>', unsafe_allow_html=True)
+        with x_col:
+            st.markdown('<div class="rm-wrap">', unsafe_allow_html=True)
+            if st.button("✕", key=f"rm_{idx}"):
                 st.session_state.nav_tags.pop(idx)
                 st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 else:
-    st.markdown('<p style="font-size:13px;color:#555;font-style:italic;margin-top:8px;">No tags added yet — type above and press Enter or click + Add</p>', unsafe_allow_html=True)
+    st.caption("No tags added yet — type above and press Enter or click + Add")
 
 nav_input = "\n".join(st.session_state.nav_tags)
 
 # ══════════════════════════════════════════════════════════════════
 # SECTION 5 — Seed Keywords
 # ══════════════════════════════════════════════════════════════════
-st.markdown('<div class="section-header"><div class="section-num">5</div><div class="section-title">Seed Keywords <span class="section-sub">— optional</span></div></div>', unsafe_allow_html=True)
+st.markdown('<div class="section-hdr"><div class="section-num">5</div><div class="section-ttl">Seed Keywords <span class="section-sub">— optional</span></div></div>', unsafe_allow_html=True)
 seeds_input = st.text_area("Seed keywords", height=100, label_visibility="collapsed",
     placeholder="One per line — specific keywords that must be included in the output")
 
 st.divider()
-generate = st.button("⚡ Generate Keywords", use_container_width=True)
+
+st.markdown('<div class="gen-wrap">', unsafe_allow_html=True)
+generate = st.button("⚡  Generate Keywords", use_container_width=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ── Generation logic ──────────────────────────────────────────────
 if generate:
@@ -331,7 +395,7 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         response = model.generate_content(prompt)
         match    = re.search(r'\[[\s\S]*\]', response.text)
         if not match:
-            raise ValueError(f"Could not parse Gemini response for {lang_name}")
+            raise ValueError(f"Could not parse response for {lang_name}")
         kws = json.loads(match.group())
         for kw in kws:
             kw["language"] = lang_name
@@ -339,19 +403,16 @@ Return ONLY a raw JSON array, no markdown, no explanation:
             kw["combined"] = f"{kw['keyword']}, {kw['category']}, {kw['tag']}"
         return kws
 
-    # Generate for each selected language
     all_keywords = []
     total_langs  = len(selected_lang_obj)
     for li, lang in enumerate(selected_lang_obj):
         with st.spinner(f"Generating keywords in {lang['name']} ({li+1}/{total_langs})..."):
             try:
-                kws = run_for_language(lang["name"])
-                all_keywords.extend(kws)
+                all_keywords.extend(run_for_language(lang["name"]))
             except Exception as e:
-                st.error(f"Error generating for {lang['name']}: {str(e)}")
+                st.error(f"Error for {lang['name']}: {str(e)}")
                 st.stop()
 
-    # Fetch SEMrush volumes
     if semrush_key:
         progress = st.progress(0, text="Fetching search volumes from SEMrush...")
 
@@ -371,11 +432,10 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         def get_substitutes(original, tag, category, lang_name):
             try:
                 r = model.generate_content(
-                    f'The keyword "{original}" has zero search volume in {market_label}. '
-                    f'Suggest 3 alternative keywords with same meaning that are more commonly searched. '
+                    f'Keyword "{original}" has zero search volume in {market_label}. '
+                    f'Suggest 3 alternatives with same meaning, more commonly searched. '
                     f'Category: {category}, Tag: {tag}, Language: {lang_name}. '
-                    f'Return ONLY a JSON array: ["alt1","alt2","alt3"]'
-                )
+                    f'Return ONLY a JSON array: ["alt1","alt2","alt3"]')
                 m = re.search(r'\[[\s\S]*?\]', r.text)
                 if m: return json.loads(m.group())
             except: pass
@@ -403,9 +463,8 @@ Return ONLY a raw JSON array, no markdown, no explanation:
                      (f" ({zero_replaced} replaced)" if zero_replaced else ""))
         progress.empty()
         if zero_replaced:
-            st.info(f"ℹ️ {zero_replaced} keyword(s) with zero search volume were automatically replaced.")
+            st.info(f"ℹ️ {zero_replaced} keyword(s) replaced due to zero search volume.")
 
-    # ── Results ──────────────────────────────────────────────────
     st.success(f"✅ {len(all_keywords)} keywords generated across {total_langs} language(s)!")
     st.divider()
 
@@ -449,16 +508,14 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     timestamp = datetime.now().strftime("%Y%m%d-%H%M")
     slug      = client_name.lower().replace(" ","-")
 
-    # CSV
     csv_buf = io.StringIO()
     w = csv.DictWriter(csv_buf, fieldnames=["keyword","original_keyword","category","tag","language","volume","validation","combined"])
     w.writeheader()
     for kw in all_keywords:
         w.writerow({k: kw.get(k,"") for k in ["keyword","original_keyword","category","tag","language","volume","validation","combined"]})
 
-    # Excel
     wb = Workbook(); ws = wb.active; ws.title = "Keywords"
-    DARK,WHITE = "1A1A1A","FFFFFF"; LIGHT_GREY="F5F5F5"
+    DARK,WHITE="1A1A1A","FFFFFF"; LIGHT_GREY="F5F5F5"
     BLUE_BG="E3F2FD"; BLUE_TXT="0D47A1"; GREEN_BG="E8F5E9"; GREEN_TXT="1B5E20"
     AMBER_BG="FFF8E1"; AMBER_TXT="E65100"
     thin=Side(style="thin",color="E0E0E0"); border=Border(left=thin,right=thin,top=thin,bottom=thin)
@@ -470,15 +527,14 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     t.alignment=Alignment(horizontal="left",vertical="center",indent=1)
     ws.row_dimensions[1].height=30
 
-    ws.merge_cells("A2:H2"); m=ws["A2"]
-    m.value=f"Generated {datetime.now().strftime('%d %b %Y')}  |  {qtype_code}  |  {len(all_keywords)} keywords  |  {branded_n} branded / {generic_n} generic  |  {', '.join(selected_lang_names)}"
-    m.font=Font(name="Calibri",size=10,color="888888")
-    m.fill=PatternFill("solid",fgColor="F0F0F0")
-    m.alignment=Alignment(horizontal="left",vertical="center",indent=1)
+    ws.merge_cells("A2:H2"); meta=ws["A2"]
+    meta.value=f"Generated {datetime.now().strftime('%d %b %Y')}  |  {qtype_code}  |  {len(all_keywords)} keywords  |  {branded_n} branded / {generic_n} generic"
+    meta.font=Font(name="Calibri",size=10,color="888888")
+    meta.fill=PatternFill("solid",fgColor="F0F0F0")
+    meta.alignment=Alignment(horizontal="left",vertical="center",indent=1)
     ws.row_dimensions[2].height=18
 
-    headers = ["Keyword","Original (if replaced)","Category","Tag","Language","Search Volume","Validation","Combined Entry"]
-    for col,h in enumerate(headers,1):
+    for col,h in enumerate(["Keyword","Original (if replaced)","Category","Tag","Language","Search Volume","Validation","Combined Entry"],1):
         c=ws.cell(row=3,column=col,value=h)
         c.font=Font(name="Calibri",bold=True,size=10,color=WHITE)
         c.fill=PatternFill("solid",fgColor=DARK)
