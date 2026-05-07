@@ -92,11 +92,13 @@ if "selected_langs" not in st.session_state: st.session_state.selected_langs = [
 if "selected_qt"    not in st.session_state: st.session_state.selected_qt = "mix"
 
 try:
-    gemini_key  = st.secrets.get("GEMINI_KEY", "") or os.environ.get("GEMINI_KEY", "")
-    semrush_key = st.secrets.get("SEMRUSH_KEY", "") or os.environ.get("SEMRUSH_KEY", "")
+    gemini_key   = st.secrets.get("GEMINI_KEY", "")   or os.environ.get("GEMINI_KEY", "")
+    dfs_login    = st.secrets.get("DFS_LOGIN", "")    or os.environ.get("DFS_LOGIN", "")
+    dfs_password = st.secrets.get("DFS_PASSWORD", "") or os.environ.get("DFS_PASSWORD", "")
 except:
-    gemini_key  = os.environ.get("GEMINI_KEY", "")
-    semrush_key = os.environ.get("SEMRUSH_KEY", "")
+    gemini_key   = os.environ.get("GEMINI_KEY", "")
+    dfs_login    = os.environ.get("DFS_LOGIN", "")
+    dfs_password = os.environ.get("DFS_PASSWORD", "")
 
 with st.sidebar:
     st.markdown("## ⚡ EXD Keywords")
@@ -115,10 +117,12 @@ with st.sidebar:
         st.success("Gemini ✓")
     else:
         gemini_key = st.text_input("Gemini API key", type="password")
-    if semrush_key:
-        st.success("SEMrush ✓")
+    if dfs_login and dfs_password:
+        st.success("DataForSEO ✓")
     else:
-        semrush_key = st.text_input("SEMrush API key (optional)", type="password")
+        st.caption("DataForSEO credentials (optional — for search volumes)")
+        dfs_login    = st.text_input("DataForSEO login (email)", key="dfs_login_input")
+        dfs_password = st.text_input("DataForSEO password", type="password", key="dfs_pass_input")
 
 st.markdown("# ⚡ EXD Keyword Research Tool")
 st.markdown("Generate, validate, and export pitch keyword lists in seconds.")
@@ -358,20 +362,23 @@ Return ONLY a raw JSON array, no markdown, no explanation:
                 st.error(f"Error for {lang['name']}: {str(e)}")
                 st.stop()
 
-    if semrush_key:
-        progress = st.progress(0, text="Fetching search volumes from SEMrush...")
+    if dfs_login and dfs_password:
+        import base64
+        progress = st.progress(0, text="Fetching search volumes from DataForSEO...")
+        dfs_creds = base64.b64encode(f"{dfs_login}:{dfs_password}".encode()).decode()
+        dfs_headers = {"Authorization": f"Basic {dfs_creds}", "Content-Type": "application/json"}
 
         def fetch_volume(keyword):
             try:
-                res = requests.get("https://api.semrush.com/", params={
-                    "type":"phrase_this","key":semrush_key,
-                    "export_columns":"Ph,Nq","database":market_code,
-                    "phrase":keyword,"export_escape":"1"
-                }, timeout=10)
-                lines = res.text.strip().split("\n")
-                if len(lines) >= 2:
-                    vol = lines[1].split(";")[1].replace('"','').strip()
-                    return int(vol) if vol.isdigit() else None
+                payload = [{"keywords": [keyword], "location_name": market_label, "language_name": "English"}]
+                res = requests.post(
+                    "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
+                    headers=dfs_headers, json=payload, timeout=15
+                )
+                data = res.json()
+                items = data.get("tasks", [{}])[0].get("result", [{}])[0].get("items", [])
+                if items:
+                    return items[0].get("search_volume") or None
             except:
                 return None
 
@@ -390,6 +397,11 @@ Return ONLY a raw JSON array, no markdown, no explanation:
 
         zero_replaced = 0
         for i, kw in enumerate(all_keywords):
+            if st.session_state.stop_requested:
+                progress.empty()
+                st.warning("⏹ Stopped during volume fetch. Partial results shown below.")
+                st.session_state.generating = False
+                break
             vol = fetch_volume(kw["keyword"])
             if not vol:
                 for sub in get_substitutes(kw["keyword"], kw["tag"], kw["category"], kw["language"]):
@@ -405,11 +417,6 @@ Return ONLY a raw JSON array, no markdown, no explanation:
                     all_keywords[i]["volume"] = vol
             else:
                 all_keywords[i]["volume"] = vol
-            if st.session_state.stop_requested:
-                progress.empty()
-                st.warning("⏹ Stopped during volume fetch. Partial results shown below.")
-                st.session_state.generating = False
-                break
             progress.progress((i+1)/len(all_keywords),
                 text=f"Fetching volumes {i+1}/{len(all_keywords)}..." +
                      (f" ({zero_replaced} replaced)" if zero_replaced else ""))
@@ -431,7 +438,7 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     m2.metric("Branded", branded_n)
     m3.metric("Generic", generic_n)
     m4.metric("Total volume" if semrush_key else "Confirmed",
-              f"{total_vol:,}" if semrush_key else confirmed_n)
+              f"{total_vol:,}" if dfs_login and dfs_password else confirmed_n)
     st.divider()
 
     import pandas as pd
