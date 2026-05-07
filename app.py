@@ -474,58 +474,79 @@ Return ONLY a raw JSON array, no markdown, no explanation:
                     all_keywords[i]["volume"] = None
                     zero_kws.append(i)
 
-            # Handle zero-volume keywords — get substitutes and batch fetch them
+            # Handle zero-volume keywords — keep retrying until SV found or max attempts reached
             if zero_kws:
-                def get_substitutes_batch(keywords_with_meta):
+                MAX_ATTEMPTS = 5
+
+                def get_substitute(keyword, tag, category, lang_name, exclude=[]):
+                    """Ask Gemini for a single alternative keyword with higher search volume"""
+                    exclude_note = f" Do NOT suggest any of these: {', '.join(exclude)}." if exclude else ""
                     sub_prompt = (
-                        f"These keywords have zero search volume in {market_label}. "
-                        f"For each, suggest 1 better alternative that means the same thing and is more commonly searched. "
-                        f"Keywords: {json.dumps([k['keyword'] for k in keywords_with_meta])}. "
-                        f"Return ONLY a JSON array of strings, one substitute per keyword in the same order: "
-                        f'["sub1","sub2","sub3"]'
+                        f'The keyword "{keyword}" has zero search volume in {market_label}.{exclude_note} '
+                        f'Suggest 1 alternative keyword that means the same thing and is MORE commonly searched by real users. '
+                        f'Category: {category}, Tag: {tag}, Language: {lang_name}. '
+                        f'Return ONLY a JSON array with 1 string: ["alternative keyword"]'
                     )
                     try:
                         r = genai_client.models.generate_content(model="gemini-2.5-flash-lite", contents=sub_prompt)
                         m = re.search(r'\[[\s\S]*?\]', r.text)
-                        return json.loads(m.group()) if m else []
+                        result = json.loads(m.group()) if m else []
+                        return result[0].strip() if result else None
                     except:
-                        return []
+                        return None
 
-                zero_meta   = [all_keywords[i] for i in zero_kws]
-                substitutes = get_substitutes_batch(zero_meta)
-
-                if substitutes:
-                    # Batch fetch volumes for all substitutes at once
+                def fetch_single_volume(keyword, lang_name):
+                    """Fetch volume for a single keyword"""
                     try:
-                        sub_payload = [{"keywords": substitutes, "location_name": dfs_location, "language_name": "English"}]
-                        sub_res  = requests.post(
+                        dfs_lang = {"English":"English","Arabic":"Arabic","French":"French",
+                                    "German":"German","Hindi":"Hindi",
+                                    "Chinese (Simplified)":"Chinese (Simplified)","Japanese":"Japanese"}.get(lang_name, "English")
+                        payload = [{"keywords": [keyword], "location_name": dfs_location, "language_name": dfs_lang}]
+                        res = requests.post(
                             "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
-                            headers=dfs_headers, json=sub_payload, timeout=60)
-                        sub_data  = sub_res.json()
-                        sub_items = sub_data.get("tasks", [{}])[0].get("result", []) or []
-                        sub_vol_map = {}
-                        for item in sub_items:
-                            kw  = item.get("keyword")
-                            vol = item.get("search_volume")
-                            if kw and vol is not None:
-                                sub_vol_map[kw] = vol
+                            headers=dfs_headers, json=payload, timeout=15)
+                        items = res.json().get("tasks", [{}])[0].get("result", []) or []
+                        for item in items:
+                            if item.get("keyword") == keyword:
+                                vol = item.get("search_volume")
+                                return vol if vol is not None else None
                     except:
-                        sub_vol_map = {}
+                        return None
 
-                    zero_replaced = 0
-                    for idx, orig_i in enumerate(zero_kws):
-                        if idx < len(substitutes):
-                            sub = substitutes[idx]
-                            sub_vol = sub_vol_map.get(sub)
-                            if sub_vol and sub_vol > 0:
-                                all_keywords[orig_i]["original_keyword"] = all_keywords[orig_i]["keyword"]
-                                all_keywords[orig_i]["keyword"]  = sub
-                                all_keywords[orig_i]["volume"]   = sub_vol
-                                all_keywords[orig_i]["combined"] = f"{sub}, {all_keywords[orig_i]['category']}, {all_keywords[orig_i]['tag']}"
-                                zero_replaced += 1
+                zero_replaced = 0
+                still_none    = 0
+                replace_placeholder = st.empty()
 
-                    if zero_replaced:
-                        st.info(f"ℹ️ {zero_replaced} keyword(s) replaced due to zero search volume.")
+                for orig_i in zero_kws:
+                    kw        = all_keywords[orig_i]
+                    tried     = [kw["keyword"]]
+                    found     = False
+
+                    for attempt in range(MAX_ATTEMPTS):
+                        replace_placeholder.info(f"🔄 Finding substitute for '{kw['keyword']}' (attempt {attempt+1}/{MAX_ATTEMPTS})...")
+                        sub = get_substitute(kw["keyword"], kw["tag"], kw["category"], kw["language"], exclude=tried)
+                        if not sub or sub in tried:
+                            continue
+                        tried.append(sub)
+                        vol = fetch_single_volume(sub, kw["language"])
+                        if vol and vol > 0:
+                            all_keywords[orig_i]["original_keyword"] = kw["keyword"]
+                            all_keywords[orig_i]["keyword"]  = sub
+                            all_keywords[orig_i]["volume"]   = vol
+                            all_keywords[orig_i]["combined"] = f"{sub}, {kw['category']}, {kw['tag']}"
+                            zero_replaced += 1
+                            found = True
+                            break
+
+                    if not found:
+                        still_none += 1
+
+                replace_placeholder.empty()
+
+                if zero_replaced:
+                    st.info(f"ℹ️ {zero_replaced} keyword(s) replaced with higher-volume alternatives.")
+                if still_none:
+                    st.warning(f"⚠️ {still_none} keyword(s) still have no search volume after {MAX_ATTEMPTS} attempts — Google Ads has no data for these queries in this market.")
 
     st.session_state.generating = False
     st.success(f"✅ {len(all_keywords)} keywords generated!")
