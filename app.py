@@ -256,7 +256,7 @@ for i, lang in enumerate(LANGUAGES):
             cursor: pointer !important;
         }}
         </style>""", unsafe_allow_html=True)
-        if st.button("x", key=f"lang_{lang['code']}", use_container_width=True):
+        if st.button("Select", key=f"lang_{lang['code']}", use_container_width=True):
             if lang["code"] in st.session_state.selected_langs:
                 if len(st.session_state.selected_langs) > 1:
                     st.session_state.selected_langs.remove(lang["code"])
@@ -302,7 +302,7 @@ for i, qt in enumerate(QTYPES):
             cursor: pointer !important;
         }}
         </style>""", unsafe_allow_html=True)
-        if st.button("x", key=f"qt_{qt['code']}", use_container_width=True):
+        if st.button("Select", key=f"qt_{qt['code']}", use_container_width=True):
             st.session_state.selected_qt = qt["code"]
             st.rerun()
 
@@ -327,16 +327,34 @@ if (add_clicked or new_tag) and new_tag.strip():
         st.rerun()
 
 if st.session_state.nav_tags:
+    # Style all tag-remove buttons to look like pills
+    st.markdown("""<style>
+    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+        background: #1e1e1e !important;
+        border: 1px solid #444 !important;
+        border-radius: 20px !important;
+        color: #ddd !important;
+        font-size: 13px !important;
+        font-weight: 400 !important;
+        padding: 4px 14px !important;
+        height: auto !important;
+        width: auto !important;
+        margin: 3px !important;
+    }
+    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button:hover {
+        border-color: #f97316 !important;
+        color: #f97316 !important;
+        background: #1e1e1e !important;
+    }
+    </style>""", unsafe_allow_html=True)
+
+    # Render tags as pill buttons in a flowing horizontal block
+    tag_btn_cols = st.columns(len(st.session_state.nav_tags))
     for idx, tag in enumerate(st.session_state.nav_tags):
-        pill_col, x_col, pad_col = st.columns([3, 0.5, 8])
-        with pill_col:
-            st.markdown(f'<div style="background:#1e1e1e;border:1px solid #333;border-radius:20px;padding:5px 14px;font-size:13px;color:#ddd;margin-top:4px;display:inline-block">{tag}</div>', unsafe_allow_html=True)
-        with x_col:
-            st.markdown('<div class="rm-wrap">', unsafe_allow_html=True)
-            if st.button("✕", key=f"rm_{idx}"):
+        with tag_btn_cols[idx]:
+            if st.button(f"{tag}  ×", key=f"rm_{idx}"):
                 st.session_state.nav_tags.pop(idx)
                 st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.caption("No tags added yet — type above and press Enter or click + Add")
 
