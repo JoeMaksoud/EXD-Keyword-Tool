@@ -300,22 +300,24 @@ if st.session_state.nav_tags:
     st.markdown(f'<div style="display:flex;flex-wrap:wrap;margin-top:6px;">{pills}</div>', unsafe_allow_html=True)
     st.markdown("<p style='font-size:12px;color:#666;margin:10px 0 4px;'>Click to remove:</p>", unsafe_allow_html=True)
     st.markdown("""<style>
-    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+    .rm-tag-row div[data-testid="stButton"] > button {
         background:transparent !important; border:1px solid #444 !important;
         border-radius:20px !important; color:#888 !important;
-        font-size:12px !important; padding:3px 10px !important;
-        height:auto !important; width:auto !important;
+        font-size:12px !important; padding:3px 12px !important;
+        height:auto !important; width:auto !important; margin:2px !important;
     }
-    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button:hover {
+    .rm-tag-row div[data-testid="stButton"] > button:hover {
         border-color:#f97316 !important; color:#f97316 !important;
     }
     </style>""", unsafe_allow_html=True)
-    rm_cols = st.columns(len(st.session_state.nav_tags))
+    st.markdown('<div class="rm-tag-row">', unsafe_allow_html=True)
     for idx, tag in enumerate(st.session_state.nav_tags):
-        with rm_cols[idx]:
+        col, _ = st.columns([1.2, 8 - min(len(st.session_state.nav_tags) * 1.2, 7)])
+        with col:
             if st.button(f"✕ {tag}", key=f"rm_{idx}"):
                 st.session_state.nav_tags.pop(idx)
                 st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.caption("No tags yet — type above and press Enter or click + Add")
 
@@ -464,85 +466,9 @@ Return ONLY a raw JSON array, no markdown, no explanation:
                 st.warning(f"⚠️ Volume fetch failed: {str(e)}")
                 vol_map = {}
 
-            # Assign volumes — collect zero-volume keywords for substitution
-            zero_kws = []
+            # Assign volumes — None where Google has no data
             for i, kw in enumerate(all_keywords):
-                vol = vol_map.get(kw["keyword"])
-                if vol and vol > 0:
-                    all_keywords[i]["volume"] = vol
-                else:
-                    all_keywords[i]["volume"] = None
-                    zero_kws.append(i)
-
-            # Handle zero-volume keywords in parallel
-            if zero_kws:
-                import concurrent.futures
-
-                DFS_LANG_MAP_LOCAL = {
-                    "English":"English","Arabic":"Arabic","French":"French",
-                    "German":"German","Hindi":"Hindi",
-                    "Chinese (Simplified)":"Chinese (Simplified)","Japanese":"Japanese"
-                }
-
-                def resolve_zero_keyword(orig_i):
-                    kw    = all_keywords[orig_i]
-                    tried = [kw["keyword"]]
-                    for attempt in range(3):
-                        # Ask Gemini for a substitute
-                        exclude_note = f" Do NOT suggest: {', '.join(tried)}." if tried else ""
-                        sub_prompt = (
-                            f'Keyword "{kw["keyword"]}" has zero search volume in {market_label}.{exclude_note} '
-                            f'Suggest 1 more commonly searched alternative with same meaning. '
-                            f'Category: {kw["category"]}, Tag: {kw["tag"]}, Language: {kw["language"]}. '
-                            f'Return ONLY: ["alternative"]'
-                        )
-                        try:
-                            r   = genai_client.models.generate_content(model="gemini-2.5-flash-lite", contents=sub_prompt)
-                            m   = re.search(r'\[[\s\S]*?\]', r.text)
-                            sub = json.loads(m.group())[0].strip() if m else None
-                        except:
-                            sub = None
-
-                        if not sub or sub in tried:
-                            continue
-                        tried.append(sub)
-
-                        # Check volume for this substitute
-                        try:
-                            dfs_lang = DFS_LANG_MAP_LOCAL.get(kw["language"], "English")
-                            res = requests.post(
-                                "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
-                                headers=dfs_headers,
-                                json=[{"keywords": [sub], "location_name": dfs_location, "language_name": dfs_lang}],
-                                timeout=15)
-                            items = res.json().get("tasks", [{}])[0].get("result", []) or []
-                            vol   = next((i.get("search_volume") for i in items if i.get("keyword") == sub), None)
-                            if vol and vol > 0:
-                                return orig_i, sub, vol
-                        except:
-                            continue
-                    return orig_i, None, None
-
-                with st.spinner(f"🔄 Finding substitutes for {len(zero_kws)} zero-volume keywords..."):
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                        futures = {executor.submit(resolve_zero_keyword, i): i for i in zero_kws}
-                        zero_replaced = 0
-                        still_none    = 0
-                        for future in concurrent.futures.as_completed(futures):
-                            orig_i, sub, vol = future.result()
-                            if sub and vol:
-                                all_keywords[orig_i]["original_keyword"] = all_keywords[orig_i]["keyword"]
-                                all_keywords[orig_i]["keyword"]  = sub
-                                all_keywords[orig_i]["volume"]   = vol
-                                all_keywords[orig_i]["combined"] = f"{sub}, {all_keywords[orig_i]['category']}, {all_keywords[orig_i]['tag']}"
-                                zero_replaced += 1
-                            else:
-                                still_none += 1
-
-                if zero_replaced:
-                    st.info(f"ℹ️ {zero_replaced} keyword(s) replaced with higher-volume alternatives.")
-                if still_none:
-                    st.warning(f"⚠️ {still_none} keyword(s) have no Google Ads data in this market.")
+                all_keywords[i]["volume"] = vol_map.get(kw["keyword"])
 
     st.session_state.generating = False
     st.success(f"✅ {len(all_keywords)} keywords generated!")
