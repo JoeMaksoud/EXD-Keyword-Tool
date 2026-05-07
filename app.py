@@ -5,6 +5,7 @@ import csv
 import json
 import re
 import io
+import os
 from datetime import datetime
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
@@ -17,7 +18,6 @@ st.markdown("""
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
   .block-container { max-width: 800px; padding: 2rem 2rem 4rem; }
-
   .section-hdr { display:flex; align-items:center; gap:12px; margin:2.5rem 0 1rem; }
   .section-num {
     min-width:28px; height:28px; border-radius:50%;
@@ -26,119 +26,41 @@ st.markdown("""
   }
   .section-ttl { font-size:15px; font-weight:600; color:#fff; }
   .section-sub { font-size:13px; color:#666; font-weight:400; }
-
-  /* ── Language & query type cards ───────────────────────────── */
-  /* The card is an HTML div, the button sits INSIDE the same visual block */
-  .selcard {
-    background: #1e1e1e;
-    border: 1.5px solid #333;
-    border-radius: 10px;
-    padding: 12px 8px 0px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.15s;
-    margin-bottom: 0;
+  div[data-testid="stButton"] > button {
+    background:#1e1e1e !important; border:1.5px solid #333 !important;
+    border-radius:10px !important; color:#fff !important;
+    font-weight:500 !important; transition:border-color 0.15s !important;
   }
-  .selcard:hover { border-color: #666; }
-  .selcard.active { border-color: #f97316; }
-  .selcard .card-flag { font-size: 20px; margin-bottom: 3px; }
-  .selcard .card-name { font-size: 11px; font-weight: 600; color: #fff; }
-  .selcard .card-native { font-size: 10px; color: #666; margin-bottom: 6px; }
-  .selcard .card-tick {
-    font-size: 11px; color: #f97316; font-weight: 700;
-    min-height: 16px; margin-bottom: 4px;
+  div[data-testid="stButton"] > button:hover {
+    border-color:#f97316 !important; background:#1e1e1e !important; color:#fff !important;
   }
-  .selcard .card-title { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 4px; }
-  .selcard .card-desc { font-size: 11px; color: #888; margin-bottom: 8px; line-height: 1.4; }
-
-  /* The button inside a selcard is borderless and fills the card bottom */
-  .selcard + div div[data-testid="stButton"] > button {
-    background: transparent !important;
-    border: none !important;
-    border-top: 1px solid #2a2a2a !important;
-    border-radius: 0 0 10px 10px !important;
-    color: #888 !important;
-    font-size: 11px !important;
-    font-weight: 400 !important;
-    width: 100% !important;
-    padding: 5px !important;
-    margin: 0 !important;
-    cursor: pointer !important;
+  .gen-btn div[data-testid="stButton"] > button {
+    background:#f97316 !important; border:none !important;
+    border-radius:10px !important; font-size:15px !important;
+    font-weight:600 !important; color:#fff !important; padding:0.75rem !important;
   }
-  .selcard + div div[data-testid="stButton"] > button:hover {
-    background: #f97316 !important;
-    color: #fff !important;
-    border-top-color: #f97316 !important;
+  .gen-btn div[data-testid="stButton"] > button:hover { background:#ea6c0a !important; }
+  .add-btn div[data-testid="stButton"] > button {
+    background:#f97316 !important; border:none !important;
+    border-radius:8px !important; color:#fff !important; font-weight:600 !important;
   }
-
-  /* Tag pill */
-  .tag-pill {
-    display: inline-block;
-    background: #1e1e1e; border: 1px solid #333; border-radius: 20px;
-    padding: 5px 14px; font-size: 13px; color: #ddd; margin-top: 2px;
-  }
-
-  /* ✕ remove button */
-  .rm-wrap div[data-testid="stButton"] > button {
-    background: transparent !important;
-    border: 1px solid #444 !important;
-    border-radius: 50% !important;
-    color: #888 !important;
-    font-size: 12px !important;
-    width: 26px !important;
-    min-width: 26px !important;
-    height: 26px !important;
-    padding: 0 !important;
-    margin-top: 4px !important;
-  }
-  .rm-wrap div[data-testid="stButton"] > button:hover {
-    border-color: #f97316 !important;
-    color: #f97316 !important;
-  }
-
-  /* + Add button */
-  .add-wrap div[data-testid="stButton"] > button {
-    background: #f97316 !important;
-    border: none !important;
-    border-radius: 8px !important;
-    color: #fff !important;
-    font-weight: 600 !important;
-    font-size: 13px !important;
-    padding: 8px !important;
-    width: 100% !important;
-  }
-  .add-wrap div[data-testid="stButton"] > button:hover {
-    background: #ea6c0a !important;
-  }
-
-  /* Generate button */
-  .gen-wrap div[data-testid="stButton"] > button {
-    background: #f97316 !important;
-    border: none !important;
-    border-radius: 10px !important;
-    color: #fff !important;
-    font-size: 15px !important;
-    font-weight: 600 !important;
-    width: 100% !important;
-    padding: 0.75rem !important;
-  }
-  .gen-wrap div[data-testid="stButton"] > button:hover {
-    background: #ea6c0a !important;
-  }
-
-  /* Download buttons */
+  .add-btn div[data-testid="stButton"] > button:hover { background:#ea6c0a !important; }
   div[data-testid="stDownloadButton"] > button {
-    background: #f97316 !important; color: #fff !important;
-    border: none !important; border-radius: 10px !important;
-    font-weight: 600 !important; width: 100% !important;
+    background:#f97316 !important; color:#fff !important;
+    border:none !important; border-radius:10px !important; font-weight:600 !important;
   }
-
-  hr { border-color: #2a2a2a !important; }
-  #MainMenu, footer { visibility: hidden; }
+  div[data-testid="stDownloadButton"] > button:hover { background:#ea6c0a !important; }
+  .tag-pill {
+    display:inline-flex; align-items:center; gap:6px;
+    background:#1e1e1e; border:1px solid #444; border-radius:20px;
+    padding:5px 14px; font-size:13px; color:#ddd; margin:3px;
+    cursor:pointer;
+  }
+  hr { border-color:#2a2a2a !important; }
+  #MainMenu, footer { visibility:hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Constants ─────────────────────────────────────────────────────
 MARKETS = {
     "Saudi Arabia":"sa","UAE":"ae","Egypt":"eg","Kuwait":"kw","Qatar":"qa",
     "Bahrain":"bh","Oman":"om","Jordan":"jo","Lebanon":"lb",
@@ -155,9 +77,9 @@ LANGUAGES = [
     {"code":"ja","name":"Japanese","native":"日本語",    "flag":"🇯🇵"},
 ]
 QTYPES = [
-    {"code":"direct",   "title":"Direct",   "desc":"Short, high-intent. 1–3 words. e.g. \"pure honey\""},
-    {"code":"longtail", "title":"Long-tail", "desc":"Specific phrases. 4–8 words. e.g. \"best raw honey for immunity\""},
-    {"code":"mix",      "title":"Mix",       "desc":"Balanced blend of short and long-tail queries"},
+    {"code":"direct",   "title":"Direct",   "desc":"Short, high-intent. 1–3 words."},
+    {"code":"longtail", "title":"Long-tail", "desc":"Specific phrases. 4–8 words."},
+    {"code":"mix",      "title":"Mix",       "desc":"Balanced blend of both."},
 ]
 QTYPE_INSTRUCTIONS = {
     "direct":   "Generate SHORT HIGH-INTENT keywords only. Each must be 1-3 words maximum.",
@@ -165,23 +87,24 @@ QTYPE_INSTRUCTIONS = {
     "mix":      "Generate a MIX: roughly half 1-3 words (direct) and half 4-8 words (long-tail).",
 }
 
-# ── Session state ─────────────────────────────────────────────────
 if "nav_tags"       not in st.session_state: st.session_state.nav_tags = []
 if "selected_langs" not in st.session_state: st.session_state.selected_langs = ["en"]
 if "selected_qt"    not in st.session_state: st.session_state.selected_qt = "mix"
 
-# ── API Keys ──────────────────────────────────────────────────────
-gemini_key  = st.secrets.get("GEMINI_KEY", "")
-semrush_key = st.secrets.get("SEMRUSH_KEY", "")
+try:
+    gemini_key  = st.secrets.get("GEMINI_KEY", "") or os.environ.get("GEMINI_KEY", "")
+    semrush_key = st.secrets.get("SEMRUSH_KEY", "") or os.environ.get("SEMRUSH_KEY", "")
+except:
+    gemini_key  = os.environ.get("GEMINI_KEY", "")
+    semrush_key = os.environ.get("SEMRUSH_KEY", "")
 
-# ── Sidebar ───────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## ⚡ EXD Keywords")
     st.markdown("Generate pitch keyword lists in seconds.")
     st.divider()
     st.markdown("**How to use**")
     st.caption("1. Fill in account setup")
-    st.caption("2. Select one or more languages")
+    st.caption("2. Select languages")
     st.caption("3. Choose keyword type")
     st.caption("4. Add tags")
     st.caption("5. Click Generate")
@@ -197,16 +120,12 @@ with st.sidebar:
     else:
         semrush_key = st.text_input("SEMrush API key (optional)", type="password")
 
-# ── Header ────────────────────────────────────────────────────────
 st.markdown("# ⚡ EXD Keyword Research Tool")
 st.markdown("Generate, validate, and export pitch keyword lists in seconds.")
 st.divider()
 
-# ══════════════════════════════════════════════════════════════════
-# SECTION 1 — Account Setup
-# ══════════════════════════════════════════════════════════════════
+# SECTION 1
 st.markdown('<div class="section-hdr"><div class="section-num">1</div><div class="section-ttl">Account Setup</div></div>', unsafe_allow_html=True)
-
 c1, c2 = st.columns(2)
 with c1:
     client_name  = st.text_input("Client name", placeholder="e.g. Al Shifa Honey")
@@ -217,166 +136,115 @@ c3, c4 = st.columns(2)
 with c3:
     branded_count = st.number_input("Branded keywords", min_value=0, max_value=1000, value=10, step=1)
 with c4:
-    generic_count = st.number_input("Generic keywords",  min_value=0, max_value=1000, value=30, step=1)
+    generic_count = st.number_input("Generic keywords", min_value=0, max_value=1000, value=30, step=1)
 
-# ══════════════════════════════════════════════════════════════════
-# SECTION 2 — Languages
-# ══════════════════════════════════════════════════════════════════
+# SECTION 2
 st.markdown('<div class="section-hdr"><div class="section-num">2</div><div class="section-ttl">Languages</div></div>', unsafe_allow_html=True)
 st.caption("Click to select — multiple languages supported.")
-
 lang_cols = st.columns(len(LANGUAGES))
 for i, lang in enumerate(LANGUAGES):
     with lang_cols[i]:
         is_active = lang["code"] in st.session_state.selected_langs
-        border    = "#f97316" if is_active else "#333"
-        tick      = "✓" if is_active else ""
-        # Card visual
-        st.markdown(f"""
-        <div style="background:#1e1e1e;border:1.5px solid {border};border-radius:10px 10px 0 0;
-            padding:12px 4px 8px;text-align:center;">
+        border = "#f97316" if is_active else "#333"
+        tick = "✓" if is_active else ""
+        st.markdown(f"""<div style="background:#1e1e1e;border:1.5px solid {border};
+            border-radius:10px 10px 0 0;padding:10px 4px 6px;text-align:center;">
             <div style="font-size:20px">{lang['flag']}</div>
             <div style="font-size:11px;font-weight:600;color:#fff;margin-top:3px">{lang['name']}</div>
             <div style="font-size:10px;color:#666">{lang['native']}</div>
-            <div style="font-size:11px;color:#f97316;font-weight:700;min-height:16px;margin-top:4px">{tick}</div>
+            <div style="font-size:11px;color:#f97316;font-weight:700;min-height:14px;margin-top:3px">{tick}</div>
         </div>""", unsafe_allow_html=True)
-        # Button sits flush below the card, styled to look like card bottom
         btn_bg = "#f97316" if is_active else "#2a2a2a"
-        st.markdown(f"""<style>
-        div[data-testid="column"]:nth-of-type({i+1}) div[data-testid="stButton"] > button {{
-            background: {btn_bg} !important;
-            border: 1.5px solid {border} !important;
-            border-top: none !important;
-            border-radius: 0 0 10px 10px !important;
-            color: transparent !important;
-            font-size: 1px !important;
-            height: 12px !important;
-            padding: 6px !important;
-            width: 100% !important;
-            cursor: pointer !important;
-        }}
-        </style>""", unsafe_allow_html=True)
-        if st.button("Select", key=f"lang_{lang['code']}", width='stretch'):
+        st.markdown(f"""<style>div[data-testid="column"]:nth-of-type({i+1}) div[data-testid="stButton"] > button {{
+            background:{btn_bg} !important; border:1.5px solid {border} !important;
+            border-top:none !important; border-radius:0 0 10px 10px !important;
+            color:#fff !important; font-size:12px !important; font-weight:400 !important;
+            padding:4px !important; width:100% !important;
+        }}</style>""", unsafe_allow_html=True)
+        if st.button("Select", key=f"lang_{lang['code']}"):
             if lang["code"] in st.session_state.selected_langs:
                 if len(st.session_state.selected_langs) > 1:
                     st.session_state.selected_langs.remove(lang["code"])
             else:
                 st.session_state.selected_langs.append(lang["code"])
             st.rerun()
-
 selected_lang_names = [l["name"] for l in LANGUAGES if l["code"] in st.session_state.selected_langs]
 if len(selected_lang_names) > 1:
-    st.caption(f"✓ {len(selected_lang_names)} languages selected: {', '.join(selected_lang_names)}")
+    st.caption(f"✓ {len(selected_lang_names)} languages: {', '.join(selected_lang_names)}")
 
-# ══════════════════════════════════════════════════════════════════
-# SECTION 3 — Keyword Type
-# ══════════════════════════════════════════════════════════════════
+# SECTION 3
 st.markdown('<div class="section-hdr"><div class="section-num">3</div><div class="section-ttl">Keyword Type</div></div>', unsafe_allow_html=True)
-
 qt_cols = st.columns(3)
 for i, qt in enumerate(QTYPES):
     with qt_cols[i]:
         is_active = st.session_state.selected_qt == qt["code"]
-        border    = "#f97316" if is_active else "#333"
-        tick      = "✓" if is_active else ""
-        st.markdown(f"""
-        <div style="background:#1e1e1e;border:1.5px solid {border};border-radius:10px 10px 0 0;
-            padding:14px 12px 8px;min-height:80px;">
-            <div style="font-size:13px;font-weight:600;color:#fff">{qt['title']}
-              <span style="font-size:11px;color:#f97316;font-weight:700;margin-left:6px">{tick}</span>
-            </div>
+        border = "#f97316" if is_active else "#333"
+        tick = " ✓" if is_active else ""
+        st.markdown(f"""<div style="background:#1e1e1e;border:1.5px solid {border};
+            border-radius:10px 10px 0 0;padding:14px 12px 8px;min-height:75px;">
+            <div style="font-size:13px;font-weight:600;color:#fff">{qt['title']}<span style="color:#f97316">{tick}</span></div>
             <div style="font-size:11px;color:#888;margin-top:5px;line-height:1.4">{qt['desc']}</div>
         </div>""", unsafe_allow_html=True)
         btn_bg = "#f97316" if is_active else "#2a2a2a"
-        st.markdown(f"""<style>
-        div[data-testid="column"]:nth-of-type({i+1}) div[data-testid="stButton"] > button {{
-            background: {btn_bg} !important;
-            border: 1.5px solid {border} !important;
-            border-top: none !important;
-            border-radius: 0 0 10px 10px !important;
-            color: transparent !important;
-            font-size: 1px !important;
-            height: 12px !important;
-            padding: 6px !important;
-            width: 100% !important;
-            cursor: pointer !important;
-        }}
-        </style>""", unsafe_allow_html=True)
-        if st.button("Select", key=f"qt_{qt['code']}", width='stretch'):
+        st.markdown(f"""<style>div[data-testid="column"]:nth-of-type({i+1}) div[data-testid="stButton"] > button {{
+            background:{btn_bg} !important; border:1.5px solid {border} !important;
+            border-top:none !important; border-radius:0 0 10px 10px !important;
+            color:#fff !important; font-size:12px !important; font-weight:400 !important;
+            padding:4px !important; width:100% !important;
+        }}</style>""", unsafe_allow_html=True)
+        if st.button("Select", key=f"qt_{qt['code']}"):
             st.session_state.selected_qt = qt["code"]
             st.rerun()
 
-# ══════════════════════════════════════════════════════════════════
 # SECTION 4 — Tags
-# ══════════════════════════════════════════════════════════════════
 st.markdown('<div class="section-hdr"><div class="section-num">4</div><div class="section-ttl">Tags</div></div>', unsafe_allow_html=True)
 
 tag_col, btn_col = st.columns([5, 1])
 with tag_col:
-    new_tag = st.text_input("Add tag", placeholder="e.g. Honey, Royal Jelly, Supplements...",
-                             label_visibility="collapsed", key="tag_input",
-                             value=st.session_state.get("tag_input_val", ""))
+    new_tag = st.text_input("tag", placeholder="e.g. Honey, Royal Jelly...", label_visibility="collapsed", key="tag_input")
 with btn_col:
-    st.markdown('<div class="add-wrap">', unsafe_allow_html=True)
-    add_clicked = st.button("+ Add", key="add_tag_btn", width='stretch')
+    st.markdown('<div class="add-btn">', unsafe_allow_html=True)
+    add_clicked = st.button("+ Add", key="add_tag_btn")
     st.markdown('</div>', unsafe_allow_html=True)
 
-if (add_clicked or new_tag) and new_tag.strip():
+if add_clicked and new_tag.strip():
     tag_val = new_tag.strip()
     if tag_val not in st.session_state.nav_tags:
         st.session_state.nav_tags.append(tag_val)
-    st.session_state["tag_input_val"] = ""
     st.rerun()
 
 if st.session_state.nav_tags:
-    # Style all tag-remove buttons to look like pills
     st.markdown("""<style>
-    .tags-flow { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
-    .tags-flow div[data-testid="stButton"] > button {
-        background: #1e1e1e !important;
-        border: 1px solid #444 !important;
-        border-radius: 20px !important;
-        color: #ddd !important;
-        font-size: 13px !important;
-        font-weight: 400 !important;
-        padding: 4px 14px !important;
-        height: auto !important;
-        width: auto !important;
-        white-space: nowrap !important;
+    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+        background:#1e1e1e !important; border:1px solid #444 !important;
+        border-radius:20px !important; color:#ddd !important;
+        font-size:13px !important; font-weight:400 !important;
+        padding:4px 14px !important; height:auto !important;
+        width:auto !important; margin:3px !important;
     }
-    .tags-flow div[data-testid="stButton"] > button:hover {
-        border-color: #f97316 !important;
-        color: #f97316 !important;
-        background: #1e1e1e !important;
+    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button:hover {
+        border-color:#f97316 !important; color:#f97316 !important;
     }
-    </style>
-    <div class="tags-flow">""", unsafe_allow_html=True)
-
+    </style>""", unsafe_allow_html=True)
+    cols = st.columns(len(st.session_state.nav_tags))
     for idx, tag in enumerate(st.session_state.nav_tags):
-        if st.button(f"{tag}  ×", key=f"rm_{idx}"):
-            st.session_state.nav_tags.pop(idx)
-            st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
+        with cols[idx]:
+            if st.button(f"{tag} ×", key=f"rm_{idx}"):
+                st.session_state.nav_tags.pop(idx)
+                st.rerun()
 else:
-    st.caption("No tags added yet — type above and press Enter or click + Add")
+    st.caption("No tags yet — type above and click + Add")
 
-nav_input = "\n".join(st.session_state.nav_tags)
-
-# ══════════════════════════════════════════════════════════════════
-# SECTION 5 — Seed Keywords
-# ══════════════════════════════════════════════════════════════════
+# SECTION 5
 st.markdown('<div class="section-hdr"><div class="section-num">5</div><div class="section-ttl">Seed Keywords <span class="section-sub">— optional</span></div></div>', unsafe_allow_html=True)
-seeds_input = st.text_area("Seed keywords", height=100, label_visibility="collapsed",
-    placeholder="One per line — specific keywords that must be included in the output")
+seeds_input = st.text_area("seeds", height=100, label_visibility="collapsed",
+    placeholder="One per line — specific keywords that must be included")
 
 st.divider()
-
-st.markdown('<div class="gen-wrap">', unsafe_allow_html=True)
-generate = st.button("⚡  Generate Keywords", width='stretch')
+st.markdown('<div class="gen-btn">', unsafe_allow_html=True)
+generate = st.button("⚡  Generate Keywords", key="generate_btn")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ── Generation logic ──────────────────────────────────────────────
 if generate:
     if not gemini_key:
         st.error("Please enter your Gemini API key in the sidebar.")
@@ -413,7 +281,7 @@ Rules:
 Return ONLY a raw JSON array, no markdown, no explanation:
 [{{"keyword":"...","category":"Branded","tag":"...","validation":"confirmed"}}]"""
         response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        match    = re.search(r'\[[\s\S]*\]', response.text)
+        match = re.search(r'\[[\s\S]*\]', response.text)
         if not match:
             raise ValueError(f"Could not parse response for {lang_name}")
         kws = json.loads(match.group())
@@ -424,9 +292,8 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         return kws
 
     all_keywords = []
-    total_langs  = len(selected_lang_obj)
     for li, lang in enumerate(selected_lang_obj):
-        with st.spinner(f"Generating keywords in {lang['name']} ({li+1}/{total_langs})..."):
+        with st.spinner(f"Generating keywords in {lang['name']} ({li+1}/{len(selected_lang_obj)})..."):
             try:
                 all_keywords.extend(run_for_language(lang["name"]))
             except Exception as e:
@@ -447,7 +314,8 @@ Return ONLY a raw JSON array, no markdown, no explanation:
                 if len(lines) >= 2:
                     vol = lines[1].split(";")[1].replace('"','').strip()
                     return int(vol) if vol.isdigit() else None
-            except: return None
+            except:
+                return None
 
         def get_substitutes(original, tag, category, lang_name):
             try:
@@ -458,7 +326,8 @@ Return ONLY a raw JSON array, no markdown, no explanation:
                 r = client.models.generate_content(model="gemini-2.5-flash", contents=sub_prompt)
                 m = re.search(r'\[[\s\S]*?\]', r.text)
                 if m: return json.loads(m.group())
-            except: pass
+            except:
+                pass
             return []
 
         zero_replaced = 0
@@ -485,7 +354,7 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         if zero_replaced:
             st.info(f"ℹ️ {zero_replaced} keyword(s) replaced due to zero search volume.")
 
-    st.success(f"✅ {len(all_keywords)} keywords generated across {total_langs} language(s)!")
+    st.success(f"✅ {len(all_keywords)} keywords generated!")
     st.divider()
 
     branded_n   = sum(1 for k in all_keywords if k["category"] == "Branded")
@@ -513,7 +382,7 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         "Combined Entry":        k["combined"]
     } for k in all_keywords])
 
-    st.dataframe(df, width='stretch', height=450, column_config={
+    st.dataframe(df, use_container_width=True, height=450, column_config={
         "Keyword":               st.column_config.TextColumn(width="large"),
         "Original (if replaced)":st.column_config.TextColumn(width="medium"),
         "Category":              st.column_config.TextColumn(width="small"),
@@ -597,8 +466,8 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         st.download_button("⬇️ Download Excel",data=xlsx_buf,
             file_name=f"keywords-{slug}-{market_code}-{timestamp}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            width='stretch')
+            use_container_width=True)
     with dl2:
         st.download_button("⬇️ Download CSV",data=csv_buf.getvalue().encode("utf-8-sig"),
             file_name=f"keywords-{slug}-{market_code}-{timestamp}.csv",
-            mime="text/csv",width='stretch')
+            mime="text/csv",use_container_width=True)
