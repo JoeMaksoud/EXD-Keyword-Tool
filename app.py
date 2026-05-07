@@ -201,11 +201,64 @@ with c1:
 with c2:
     market_label = st.selectbox("Target market", list(MARKETS.keys()), index=1)
 website = st.text_input("Client website", placeholder="https://www.alshifa.com  (optional — validates keyword relevance)")
-c3, c4 = st.columns(2)
-with c3:
-    branded_count = st.number_input("Branded keywords", min_value=0, max_value=1000, value=10, step=1)
-with c4:
-    generic_count = st.number_input("Generic keywords", min_value=0, max_value=1000, value=30, step=1)
+
+# ── Mode switcher ─────────────────────────────────────────────────
+st.divider()
+if "mode" not in st.session_state:
+    st.session_state.mode = "keywords"
+
+m1, m2 = st.columns(2)
+with m1:
+    kw_active  = st.session_state.mode == "keywords"
+    kw_border  = "#f97316" if kw_active else "#333"
+    kw_tick    = " ✓" if kw_active else ""
+    st.markdown(f"""<div style="background:#1e1e1e;border:2px solid {kw_border};border-radius:10px 10px 0 0;
+        padding:14px;text-align:center;">
+        <div style="font-size:20px">🔍</div>
+        <div style="font-size:13px;font-weight:600;color:#fff;margin-top:4px">Generate Keywords<span style="color:#f97316">{kw_tick}</span></div>
+        <div style="font-size:11px;color:#888;margin-top:3px">Branded & generic search keywords</div>
+    </div>""", unsafe_allow_html=True)
+    kw_bg = "#f97316" if kw_active else "#2a2a2a"
+    st.markdown(f"""<style>div[data-testid="column"]:nth-of-type(1) div[data-testid="stButton"] > button {{
+        background:{kw_bg} !important; border:2px solid {kw_border} !important;
+        border-top:none !important; border-radius:0 0 10px 10px !important;
+        color:#fff !important; font-size:12px !important; padding:5px !important; width:100% !important;
+    }}</style>""", unsafe_allow_html=True)
+    if st.button("Select", key="mode_kw"):
+        st.session_state.mode = "keywords"
+        st.rerun()
+
+with m2:
+    pr_active  = st.session_state.mode == "prompts"
+    pr_border  = "#f97316" if pr_active else "#333"
+    pr_tick    = " ✓" if pr_active else ""
+    st.markdown(f"""<div style="background:#1e1e1e;border:2px solid {pr_border};border-radius:10px 10px 0 0;
+        padding:14px;text-align:center;">
+        <div style="font-size:20px">🤖</div>
+        <div style="font-size:13px;font-weight:600;color:#fff;margin-top:4px">Generate Prompts<span style="color:#f97316">{pr_tick}</span></div>
+        <div style="font-size:11px;color:#888;margin-top:3px">AI search prompts for ChatGPT, Gemini & more</div>
+    </div>""", unsafe_allow_html=True)
+    pr_bg = "#f97316" if pr_active else "#2a2a2a"
+    st.markdown(f"""<style>div[data-testid="column"]:nth-of-type(2) div[data-testid="stButton"] > button {{
+        background:{pr_bg} !important; border:2px solid {pr_border} !important;
+        border-top:none !important; border-radius:0 0 10px 10px !important;
+        color:#fff !important; font-size:12px !important; padding:5px !important; width:100% !important;
+    }}</style>""", unsafe_allow_html=True)
+    if st.button("Select", key="mode_pr"):
+        st.session_state.mode = "prompts"
+        st.rerun()
+
+st.divider()
+
+# ── Mode-specific fields ──────────────────────────────────────────
+if st.session_state.mode == "keywords":
+    c3, c4 = st.columns(2)
+    with c3:
+        branded_count = st.number_input("Branded keywords", min_value=0, max_value=1000, value=10, step=1)
+    with c4:
+        generic_count = st.number_input("Generic keywords", min_value=0, max_value=1000, value=30, step=1)
+else:
+    prompt_count = st.number_input("Number of prompts per language", min_value=1, max_value=200, value=20, step=1)
 
 # SECTION 2
 st.markdown('<div class="section-hdr"><div class="section-num">2</div><div class="section-ttl">Languages</div></div>', unsafe_allow_html=True)
@@ -242,31 +295,63 @@ if len(selected_lang_names) > 1:
     st.caption(f"✓ {len(selected_lang_names)} languages: {', '.join(selected_lang_names)}")
 
 # SECTION 3
-st.markdown('<div class="section-hdr"><div class="section-num">3</div><div class="section-ttl">Keyword Type</div></div>', unsafe_allow_html=True)
-qt_cols = st.columns(3)
-for i, qt in enumerate(QTYPES):
-    with qt_cols[i]:
-        is_active = st.session_state.selected_qt == qt["code"]
-        border = "#f97316" if is_active else "#333"
-        tick = " ✓" if is_active else ""
-        st.markdown(f"""<div style="background:#1e1e1e;border:1.5px solid {border};
-            border-radius:10px 10px 0 0;padding:14px 12px 8px;min-height:75px;">
-            <div style="font-size:13px;font-weight:600;color:#fff">{qt['title']}<span style="color:#f97316">{tick}</span></div>
-            <div style="font-size:11px;color:#888;margin-top:5px;line-height:1.4">{qt['desc']}</div>
-        </div>""", unsafe_allow_html=True)
-        btn_bg = "#f97316" if is_active else "#2a2a2a"
-        st.markdown(f"""<style>div[data-testid="column"]:nth-of-type({i+1}) div[data-testid="stButton"] > button {{
-            background:{btn_bg} !important; border:1.5px solid {border} !important;
-            border-top:none !important; border-radius:0 0 10px 10px !important;
-            color:#fff !important; font-size:12px !important; font-weight:400 !important;
-            padding:4px !important; width:100% !important;
-        }}</style>""", unsafe_allow_html=True)
-        if st.button("Select", key=f"qt_{qt['code']}"):
-            st.session_state.selected_qt = qt["code"]
-            st.rerun()
+if st.session_state.mode == "keywords":
+    st.markdown('<div class="section-hdr"><div class="section-num">3</div><div class="section-ttl">Keyword Type</div></div>', unsafe_allow_html=True)
+    qt_cols = st.columns(3)
+    for i, qt in enumerate(QTYPES):
+        with qt_cols[i]:
+            is_active = st.session_state.selected_qt == qt["code"]
+            border = "#f97316" if is_active else "#333"
+            tick = " ✓" if is_active else ""
+            st.markdown(f"""<div style="background:#1e1e1e;border:1.5px solid {border};
+                border-radius:10px 10px 0 0;padding:14px 12px 8px;min-height:75px;">
+                <div style="font-size:13px;font-weight:600;color:#fff">{qt['title']}<span style="color:#f97316">{tick}</span></div>
+                <div style="font-size:11px;color:#888;margin-top:5px;line-height:1.4">{qt['desc']}</div>
+            </div>""", unsafe_allow_html=True)
+            btn_bg = "#f97316" if is_active else "#2a2a2a"
+            st.markdown(f"""<style>div[data-testid="column"]:nth-of-type({i+1}) div[data-testid="stButton"] > button {{
+                background:{btn_bg} !important; border:1.5px solid {border} !important;
+                border-top:none !important; border-radius:0 0 10px 10px !important;
+                color:#fff !important; font-size:12px !important; font-weight:400 !important;
+                padding:4px !important; width:100% !important;
+            }}</style>""", unsafe_allow_html=True)
+            if st.button("Select", key=f"qt_{qt['code']}"):
+                st.session_state.selected_qt = qt["code"]
+                st.rerun()
+else:
+    st.markdown('<div class="section-hdr"><div class="section-num">3</div><div class="section-ttl">Prompt Intent</div></div>', unsafe_allow_html=True)
+    INTENTS = [
+        {"code":"informational", "title":"Informational", "desc":"What is... / How does... / Tell me about..."},
+        {"code":"comparison",    "title":"Comparison",    "desc":"What's the best... vs... / Compare..."},
+        {"code":"recommendation","title":"Recommendation","desc":"Suggest a... / What should I use for..."},
+        {"code":"action",        "title":"Action",        "desc":"Help me find... / Give me a list of..."},
+    ]
+    if "selected_intent" not in st.session_state:
+        st.session_state.selected_intent = "informational"
+    intent_cols = st.columns(4)
+    for i, intent in enumerate(INTENTS):
+        with intent_cols[i]:
+            is_active = st.session_state.selected_intent == intent["code"]
+            border = "#f97316" if is_active else "#333"
+            tick = " ✓" if is_active else ""
+            st.markdown(f"""<div style="background:#1e1e1e;border:1.5px solid {border};
+                border-radius:10px 10px 0 0;padding:12px 8px 8px;min-height:75px;">
+                <div style="font-size:12px;font-weight:600;color:#fff">{intent['title']}<span style="color:#f97316">{tick}</span></div>
+                <div style="font-size:10px;color:#888;margin-top:4px;line-height:1.4">{intent['desc']}</div>
+            </div>""", unsafe_allow_html=True)
+            btn_bg = "#f97316" if is_active else "#2a2a2a"
+            st.markdown(f"""<style>div[data-testid="column"]:nth-of-type({i+1}) div[data-testid="stButton"] > button {{
+                background:{btn_bg} !important; border:1.5px solid {border} !important;
+                border-top:none !important; border-radius:0 0 10px 10px !important;
+                color:#fff !important; font-size:11px !important; font-weight:400 !important;
+                padding:4px !important; width:100% !important;
+            }}</style>""", unsafe_allow_html=True)
+            if st.button("Select", key=f"intent_{intent['code']}"):
+                st.session_state.selected_intent = intent["code"]
+                st.rerun()
 
-# SECTION 4 — Tags
-st.markdown('<div class="section-hdr"><div class="section-num">4</div><div class="section-ttl">Tags</div></div>', unsafe_allow_html=True)
+# SECTION 4
+st.markdown(f'<div class="section-hdr"><div class="section-num">4</div><div class="section-ttl">Tags</div></div>', unsafe_allow_html=True)
 
 st.markdown("""<style>
 div[data-testid="stForm"] { border: none !important; padding: 0 !important; }
@@ -322,9 +407,10 @@ else:
     st.caption("No tags yet — type above and press Enter or click + Add")
 
 # SECTION 5
-st.markdown('<div class="section-hdr"><div class="section-num">5</div><div class="section-ttl">Seed Keywords <span class="section-sub">— optional</span></div></div>', unsafe_allow_html=True)
-seeds_input = st.text_area("seeds", height=100, label_visibility="collapsed",
-    placeholder="One per line — specific keywords that must be included")
+seed_label       = "Seed Keywords" if st.session_state.mode == "keywords" else "Seed Prompts"
+seed_placeholder = "One per line — specific keywords that must be included" if st.session_state.mode == "keywords" else "One per line — specific prompts that must be included"
+st.markdown(f'<div class="section-hdr"><div class="section-num">5</div><div class="section-ttl">{seed_label} <span class="section-sub">— optional</span></div></div>', unsafe_allow_html=True)
+seeds_input = st.text_area("seeds", height=100, label_visibility="collapsed", placeholder=seed_placeholder)
 
 st.divider()
 
@@ -341,7 +427,8 @@ st.markdown("""<style>
 </style>""", unsafe_allow_html=True)
 
 st.markdown('<div class="gen-btn">', unsafe_allow_html=True)
-generate = st.button("⚡  Generate Keywords", key="generate_btn", use_container_width=True)
+btn_label = "⚡  Generate Keywords" if st.session_state.mode == "keywords" else "⚡  Generate Prompts"
+generate = st.button(btn_label, key="generate_btn", use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
 if generate:
@@ -363,16 +450,184 @@ if generate:
         st.stop()
 
     nav_categories    = st.session_state.nav_tags
-    seed_keywords     = [x.strip() for x in seeds_input.strip().split("\n") if x.strip()]
+    seed_items        = [x.strip() for x in seeds_input.strip().split("\n") if x.strip()]
     market_code       = MARKETS[market_label]
     tags              = ", ".join(nav_categories)
-    seed_note         = f" Must include these seed keywords: {', '.join(seed_keywords)}." if seed_keywords else ""
-    web_note          = f" Client website: {website} — only generate keywords relevant to products on this site." if website else ""
-    qtype_code        = st.session_state.selected_qt
+    web_note          = f" Client website: {website} — only generate content relevant to products on this site." if website else ""
     selected_lang_obj = [l for l in LANGUAGES if l["code"] in st.session_state.selected_langs]
 
     import base64
     genai_client = genai.Client(api_key=gemini_key)
+
+    # ── PROMPTS MODE ─────────────────────────────────────────────
+    if st.session_state.mode == "prompts":
+        intent_code  = st.session_state.get("selected_intent", "informational")
+        seed_note    = f" Must include these seed prompts: {', '.join(seed_items)}." if seed_items else ""
+
+        INTENT_INSTRUCTIONS = {
+            "informational":  "Generate INFORMATIONAL prompts — questions starting with 'What is', 'How does', 'Tell me about', 'Explain', 'Why is'. These should seek knowledge about the client's products or category.",
+            "comparison":     "Generate COMPARISON prompts — questions like 'What is the best X vs Y', 'Compare X and Y', 'Which is better', 'What are the differences between'. These compare the client's products against alternatives.",
+            "recommendation": "Generate RECOMMENDATION prompts — questions like 'Suggest a', 'What should I use for', 'Recommend the best', 'What is the ideal X for Y'. These seek product or service suggestions.",
+            "action":         "Generate ACTION prompts — requests like 'Help me find', 'Give me a list of', 'Where can I buy', 'Show me options for'. These are task-oriented prompts seeking specific outcomes.",
+        }
+
+        AI_PLATFORMS = ["ChatGPT", "Gemini", "Perplexity", "Claude", "General"]
+
+        def generate_prompts_for_language(lang_name):
+            prompt = f"""You are an AI search strategist. Client: "{client_name}", market: "{market_label}".{web_note}
+Tags to assign (from client's website nav): {tags}.
+
+Generate exactly {prompt_count} AI prompts in {lang_name} that users would type into ChatGPT, Gemini, Perplexity, or similar AI tools when looking for products/services like this client's.
+
+{INTENT_INSTRUCTIONS[intent_code]}
+
+Rules:
+- Each prompt must feel natural — like something a real person would type into an AI chatbot
+- Assign each prompt exactly ONE tag from: {tags}
+- Assign an AI platform: one of ChatGPT, Gemini, Perplexity, Claude, or General (if platform-agnostic)
+- All prompts must be in {lang_name}{seed_note}
+- Add "validation": "confirmed" if clearly relevant to this client, "inferred" if loosely relevant
+
+Return ONLY a raw JSON array, no markdown, no explanation:
+[{{"prompt":"...","intent":"{intent_code}","tag":"...","platform":"ChatGPT","validation":"confirmed"}}]"""
+            response = genai_client.models.generate_content(model="gemini-2.5-flash-lite", contents=prompt)
+            match    = re.search(r'\[[\s\S]*\]', response.text)
+            if not match:
+                raise ValueError(f"Could not parse response for {lang_name}")
+            items = json.loads(match.group())
+            for item in items:
+                item["language"] = lang_name
+                item["combined"] = f"{item['prompt']}, {item['intent']}, {item['tag']}"
+            return items
+
+        all_prompts = []
+        for li, lang in enumerate(selected_lang_obj):
+            with st.spinner(f"⏳ Generating {lang['name']} prompts ({li+1}/{len(selected_lang_obj)})..."):
+                try:
+                    all_prompts.extend(generate_prompts_for_language(lang["name"]))
+                except Exception as e:
+                    st.session_state.generating = False
+                    st.error(f"Error for {lang['name']}: {str(e)}")
+                    st.stop()
+
+        st.session_state.generating = False
+        selected_lang_names = [l["name"] for l in LANGUAGES if l["code"] in st.session_state.selected_langs]
+        st.success(f"✅ {len(all_prompts)} prompts generated!")
+        st.divider()
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Total prompts", len(all_prompts))
+        m2.metric("Languages", len(selected_lang_obj))
+        m3.metric("Intent", intent_code.title())
+        st.divider()
+
+        import pandas as pd
+        df_p = pd.DataFrame([{
+            "Prompt":       p["prompt"],
+            "Intent":       p["intent"],
+            "Tag":          p["tag"],
+            "Platform":     p.get("platform","General"),
+            "Language":     p["language"],
+            "Validation":   p.get("validation",""),
+            "Combined Entry": p["combined"]
+        } for p in all_prompts])
+
+        st.dataframe(df_p, use_container_width=True, height=450, column_config={
+            "Prompt":       st.column_config.TextColumn(width="large"),
+            "Intent":       st.column_config.TextColumn(width="small"),
+            "Tag":          st.column_config.TextColumn(width="medium"),
+            "Platform":     st.column_config.TextColumn(width="small"),
+            "Language":     st.column_config.TextColumn(width="small"),
+            "Validation":   st.column_config.TextColumn(width="small"),
+            "Combined Entry": st.column_config.TextColumn(width="large"),
+        })
+        st.divider()
+
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M")
+        slug      = client_name.lower().replace(" ","-")
+
+        # CSV
+        csv_buf_p = io.StringIO()
+        wp = csv.DictWriter(csv_buf_p, fieldnames=["prompt","intent","tag","platform","language","validation","combined"])
+        wp.writeheader()
+        for p in all_prompts:
+            wp.writerow({k: p.get(k,"") for k in ["prompt","intent","tag","platform","language","validation","combined"]})
+
+        # Excel
+        wbp = Workbook(); wsp = wbp.active; wsp.title = "Prompts"
+        DARK,WHITE="1A1A1A","FFFFFF"; LIGHT_GREY="F5F5F5"
+        PURPLE_BG="EDE7F6"; PURPLE_TXT="4A148C"
+        GREEN_BG="E8F5E9"; GREEN_TXT="1B5E20"
+        AMBER_BG="FFF8E1"; AMBER_TXT="E65100"
+        thin=Side(style="thin",color="E0E0E0"); border=Border(left=thin,right=thin,top=thin,bottom=thin)
+
+        wsp.merge_cells("A1:G1"); t=wsp["A1"]
+        t.value=f"AI Prompt Research — {client_name} | {market_label} | {intent_code.title()}"
+        t.font=Font(name="Calibri",bold=True,size=13,color=WHITE)
+        t.fill=PatternFill("solid",fgColor=DARK)
+        t.alignment=Alignment(horizontal="left",vertical="center",indent=1)
+        wsp.row_dimensions[1].height=30
+
+        wsp.merge_cells("A2:G2"); meta=wsp["A2"]
+        meta.value=f"Generated {datetime.now().strftime('%d %b %Y')}  |  {intent_code} intent  |  {len(all_prompts)} prompts  |  {', '.join(selected_lang_names)}"
+        meta.font=Font(name="Calibri",size=10,color="888888")
+        meta.fill=PatternFill("solid",fgColor="F0F0F0")
+        meta.alignment=Alignment(horizontal="left",vertical="center",indent=1)
+        wsp.row_dimensions[2].height=18
+
+        for col,h in enumerate(["Prompt","Intent","Tag","Platform","Language","Validation","Combined Entry"],1):
+            c=wsp.cell(row=3,column=col,value=h)
+            c.font=Font(name="Calibri",bold=True,size=10,color=WHITE)
+            c.fill=PatternFill("solid",fgColor=DARK)
+            c.alignment=Alignment(horizontal="center",vertical="center")
+            c.border=border
+        wsp.row_dimensions[3].height=22
+
+        for r,p in enumerate(all_prompts,4):
+            rf=PatternFill("solid",fgColor=WHITE if r%2==0 else LIGHT_GREY)
+            vals=[p.get("prompt",""),p.get("intent",""),p.get("tag",""),
+                  p.get("platform",""),p.get("language",""),p.get("validation",""),p.get("combined","")]
+            for col,val in enumerate(vals,1):
+                c=wsp.cell(row=r,column=col,value=val)
+                c.font=Font(name="Calibri",size=10)
+                c.alignment=Alignment(vertical="center",wrap_text=(col in [1,7]))
+                c.border=border; c.fill=rf
+            # Intent colour
+            ic=wsp.cell(row=r,column=2)
+            ic.fill=PatternFill("solid",fgColor=PURPLE_BG)
+            ic.font=Font(name="Calibri",size=10,bold=True,color=PURPLE_TXT)
+            ic.alignment=Alignment(horizontal="center",vertical="center")
+            # Validation colour
+            vc=wsp.cell(row=r,column=6)
+            if p.get("validation")=="confirmed":
+                vc.fill=PatternFill("solid",fgColor=GREEN_BG); vc.font=Font(name="Calibri",size=10,color=GREEN_TXT)
+            elif p.get("validation")=="inferred":
+                vc.fill=PatternFill("solid",fgColor=AMBER_BG); vc.font=Font(name="Calibri",size=10,color=AMBER_TXT)
+            vc.alignment=Alignment(horizontal="center",vertical="center")
+            wsp.row_dimensions[r].height=22
+
+        for i,w in enumerate([50,14,18,14,12,12,50],1):
+            wsp.column_dimensions[get_column_letter(i)].width=w
+        wsp.freeze_panes="A4"
+
+        xlsx_buf_p=io.BytesIO(); wbp.save(xlsx_buf_p); xlsx_buf_p.seek(0)
+
+        dl1,dl2=st.columns(2)
+        with dl1:
+            st.download_button("⬇️ Download Excel",data=xlsx_buf_p,
+                file_name=f"prompts-{slug}-{market_code}-{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True)
+        with dl2:
+            st.download_button("⬇️ Download CSV",data=csv_buf_p.getvalue().encode("utf-8-sig"),
+                file_name=f"prompts-{slug}-{market_code}-{timestamp}.csv",
+                mime="text/csv",use_container_width=True)
+
+    # ── KEYWORDS MODE ─────────────────────────────────────────────
+    else:
+        seed_keywords = seed_items
+        seed_note     = f" Must include these seed keywords: {', '.join(seed_keywords)}." if seed_keywords else ""
+        qtype_code    = st.session_state.selected_qt
 
     # Test DataForSEO credentials before starting
     dfs_ok = False
