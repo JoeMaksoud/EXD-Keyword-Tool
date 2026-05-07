@@ -345,7 +345,7 @@ Rules:
 Return ONLY a raw JSON array, no markdown, no explanation:
 [{{"keyword":"...","category":"Branded","tag":"...","validation":"confirmed"}}]"""
         response = genai_client.models.generate_content(
-            model="gemini-2.0-flash", contents=prompt)
+            model="gemini-2.5-flash-lite", contents=prompt)
         match = re.search(r'\[[\s\S]*\]', response.text)
         if not match:
             raise ValueError(f"Could not parse response for {lang_name}")
@@ -391,7 +391,7 @@ Return ONLY a raw JSON array, no markdown, no explanation:
                               f'Suggest 3 alternatives, more commonly searched. '
                               f'Category: {category}, Tag: {tag}, Language: {lang_name}. '
                               f'Return ONLY a JSON array: ["alt1","alt2","alt3"]')
-                r = genai_client.models.generate_content(model="gemini-2.0-flash", contents=sub_prompt)
+                r = genai_client.models.generate_content(model="gemini-2.5-flash-lite", contents=sub_prompt)
                 m = re.search(r'\[[\s\S]*?\]', r.text)
                 return json.loads(m.group()) if m else []
             except:
