@@ -432,21 +432,34 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         dfs_location = DFS_LOCATIONS.get(market_label, market_label)
 
         with st.spinner("Fetching search volumes from DataForSEO..."):
+            vol_map = {}
             try:
-                all_kw_texts = [kw["keyword"] for kw in all_keywords]
-                payload = [{"keywords": all_kw_texts, "location_name": dfs_location, "language_name": "English"}]
-                res  = requests.post(
-                    "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
-                    headers=dfs_headers, json=payload, timeout=60)
-                data = res.json()
-                task  = data.get("tasks", [{}])[0]
-                items = task.get("result", []) or []
-                vol_map = {}
-                for item in items:
-                    kw  = item.get("keyword")
-                    vol = item.get("search_volume")
-                    if kw and vol is not None:
-                        vol_map[kw] = vol
+                # Group keywords by language for accurate volume fetching
+                from collections import defaultdict
+                lang_groups = defaultdict(list)
+                for i, kw in enumerate(all_keywords):
+                    lang_groups[kw.get("language", "English")].append((i, kw["keyword"]))
+
+                DFS_LANG_MAP = {
+                    "English": "English", "Arabic": "Arabic", "French": "French",
+                    "German": "German", "Hindi": "Hindi",
+                    "Chinese (Simplified)": "Chinese (Simplified)", "Japanese": "Japanese"
+                }
+
+                for lang_name, kw_pairs in lang_groups.items():
+                    kw_texts = [kw for _, kw in kw_pairs]
+                    dfs_lang = DFS_LANG_MAP.get(lang_name, "English")
+                    payload  = [{"keywords": kw_texts, "location_name": dfs_location, "language_name": dfs_lang}]
+                    res  = requests.post(
+                        "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
+                        headers=dfs_headers, json=payload, timeout=60)
+                    data  = res.json()
+                    items = data.get("tasks", [{}])[0].get("result", []) or []
+                    for item in items:
+                        kw  = item.get("keyword")
+                        vol = item.get("search_volume")
+                        if kw and vol is not None:
+                            vol_map[kw] = vol
             except Exception as e:
                 st.warning(f"⚠️ Volume fetch failed: {str(e)}")
                 vol_map = {}
@@ -489,8 +502,13 @@ Return ONLY a raw JSON array, no markdown, no explanation:
                             "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
                             headers=dfs_headers, json=sub_payload, timeout=60)
                         sub_data  = sub_res.json()
-                        sub_items = sub_data.get("tasks", [{}])[0].get("result", [{}])[0].get("items", [])
-                        sub_vol_map = {item["keyword"]: item.get("search_volume") for item in sub_items if item.get("keyword")}
+                        sub_items = sub_data.get("tasks", [{}])[0].get("result", []) or []
+                        sub_vol_map = {}
+                        for item in sub_items:
+                            kw  = item.get("keyword")
+                            vol = item.get("search_volume")
+                            if kw and vol is not None:
+                                sub_vol_map[kw] = vol
                     except:
                         sub_vol_map = {}
 
