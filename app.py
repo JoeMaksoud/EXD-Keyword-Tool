@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+import google.genai as genai
 import requests
 import csv
 import json
@@ -256,7 +256,7 @@ for i, lang in enumerate(LANGUAGES):
             cursor: pointer !important;
         }}
         </style>""", unsafe_allow_html=True)
-        if st.button("Select", key=f"lang_{lang['code']}", use_container_width=True):
+        if st.button("Select", key=f"lang_{lang['code']}", width='stretch'):
             if lang["code"] in st.session_state.selected_langs:
                 if len(st.session_state.selected_langs) > 1:
                     st.session_state.selected_langs.remove(lang["code"])
@@ -302,7 +302,7 @@ for i, qt in enumerate(QTYPES):
             cursor: pointer !important;
         }}
         </style>""", unsafe_allow_html=True)
-        if st.button("Select", key=f"qt_{qt['code']}", use_container_width=True):
+        if st.button("Select", key=f"qt_{qt['code']}", width='stretch'):
             st.session_state.selected_qt = qt["code"]
             st.rerun()
 
@@ -318,7 +318,7 @@ with tag_col:
                              value=st.session_state.get("tag_input_val", ""))
 with btn_col:
     st.markdown('<div class="add-wrap">', unsafe_allow_html=True)
-    add_clicked = st.button("+ Add", key="add_tag_btn", use_container_width=True)
+    add_clicked = st.button("+ Add", key="add_tag_btn", width='stretch')
     st.markdown('</div>', unsafe_allow_html=True)
 
 if (add_clicked or new_tag) and new_tag.strip():
@@ -373,7 +373,7 @@ seeds_input = st.text_area("Seed keywords", height=100, label_visibility="collap
 st.divider()
 
 st.markdown('<div class="gen-wrap">', unsafe_allow_html=True)
-generate = st.button("⚡  Generate Keywords", use_container_width=True)
+generate = st.button("⚡  Generate Keywords", width='stretch')
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ── Generation logic ──────────────────────────────────────────────
@@ -397,8 +397,7 @@ if generate:
     qtype_code        = st.session_state.selected_qt
     selected_lang_obj = [l for l in LANGUAGES if l["code"] in st.session_state.selected_langs]
 
-    genai.configure(api_key=gemini_key)
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    client = genai.Client(api_key=gemini_key)
 
     def run_for_language(lang_name):
         prompt = f"""You are an expert SEO strategist. Client: "{client_name}", market: "{market_label}".{web_note}
@@ -413,7 +412,7 @@ Rules:
 - Add "validation": "confirmed" if clearly on-brand, "inferred" if plausible but less certain
 Return ONLY a raw JSON array, no markdown, no explanation:
 [{{"keyword":"...","category":"Branded","tag":"...","validation":"confirmed"}}]"""
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         match    = re.search(r'\[[\s\S]*\]', response.text)
         if not match:
             raise ValueError(f"Could not parse response for {lang_name}")
@@ -452,11 +451,11 @@ Return ONLY a raw JSON array, no markdown, no explanation:
 
         def get_substitutes(original, tag, category, lang_name):
             try:
-                r = model.generate_content(
-                    f'Keyword "{original}" has zero search volume in {market_label}. '
-                    f'Suggest 3 alternatives with same meaning, more commonly searched. '
-                    f'Category: {category}, Tag: {tag}, Language: {lang_name}. '
-                    f'Return ONLY a JSON array: ["alt1","alt2","alt3"]')
+                sub_prompt = (f'Keyword "{original}" has zero search volume in {market_label}. '
+                              f'Suggest 3 alternatives with same meaning, more commonly searched. '
+                              f'Category: {category}, Tag: {tag}, Language: {lang_name}. '
+                              f'Return ONLY a JSON array: ["alt1","alt2","alt3"]')
+                r = client.models.generate_content(model="gemini-2.5-flash", contents=sub_prompt)
                 m = re.search(r'\[[\s\S]*?\]', r.text)
                 if m: return json.loads(m.group())
             except: pass
@@ -514,7 +513,7 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         "Combined Entry":        k["combined"]
     } for k in all_keywords])
 
-    st.dataframe(df, use_container_width=True, height=450, column_config={
+    st.dataframe(df, width='stretch', height=450, column_config={
         "Keyword":               st.column_config.TextColumn(width="large"),
         "Original (if replaced)":st.column_config.TextColumn(width="medium"),
         "Category":              st.column_config.TextColumn(width="small"),
@@ -598,8 +597,8 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         st.download_button("⬇️ Download Excel",data=xlsx_buf,
             file_name=f"keywords-{slug}-{market_code}-{timestamp}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True)
+            width='stretch')
     with dl2:
         st.download_button("⬇️ Download CSV",data=csv_buf.getvalue().encode("utf-8-sig"),
             file_name=f"keywords-{slug}-{market_code}-{timestamp}.csv",
-            mime="text/csv",use_container_width=True)
+            mime="text/csv",width='stretch')
