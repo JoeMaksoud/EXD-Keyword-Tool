@@ -314,7 +314,8 @@ st.markdown('<div class="section-hdr"><div class="section-num">4</div><div class
 tag_col, btn_col = st.columns([5, 1])
 with tag_col:
     new_tag = st.text_input("Add tag", placeholder="e.g. Honey, Royal Jelly, Supplements...",
-                             label_visibility="collapsed", key="tag_input")
+                             label_visibility="collapsed", key="tag_input",
+                             value=st.session_state.get("tag_input_val", ""))
 with btn_col:
     st.markdown('<div class="add-wrap">', unsafe_allow_html=True)
     add_clicked = st.button("+ Add", key="add_tag_btn", use_container_width=True)
@@ -324,12 +325,14 @@ if (add_clicked or new_tag) and new_tag.strip():
     tag_val = new_tag.strip()
     if tag_val not in st.session_state.nav_tags:
         st.session_state.nav_tags.append(tag_val)
-        st.rerun()
+    st.session_state["tag_input_val"] = ""
+    st.rerun()
 
 if st.session_state.nav_tags:
     # Style all tag-remove buttons to look like pills
     st.markdown("""<style>
-    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+    .tags-flow { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .tags-flow div[data-testid="stButton"] > button {
         background: #1e1e1e !important;
         border: 1px solid #444 !important;
         border-radius: 20px !important;
@@ -339,22 +342,22 @@ if st.session_state.nav_tags:
         padding: 4px 14px !important;
         height: auto !important;
         width: auto !important;
-        margin: 3px !important;
+        white-space: nowrap !important;
     }
-    div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button:hover {
+    .tags-flow div[data-testid="stButton"] > button:hover {
         border-color: #f97316 !important;
         color: #f97316 !important;
         background: #1e1e1e !important;
     }
-    </style>""", unsafe_allow_html=True)
+    </style>
+    <div class="tags-flow">""", unsafe_allow_html=True)
 
-    # Render tags as pill buttons in a flowing horizontal block
-    tag_btn_cols = st.columns(len(st.session_state.nav_tags))
     for idx, tag in enumerate(st.session_state.nav_tags):
-        with tag_btn_cols[idx]:
-            if st.button(f"{tag}  ×", key=f"rm_{idx}"):
-                st.session_state.nav_tags.pop(idx)
-                st.rerun()
+        if st.button(f"{tag}  ×", key=f"rm_{idx}"):
+            st.session_state.nav_tags.pop(idx)
+            st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
 else:
     st.caption("No tags added yet — type above and press Enter or click + Add")
 
