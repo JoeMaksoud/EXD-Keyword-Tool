@@ -68,20 +68,29 @@ st.markdown("# ⚡ EXD Keyword Research Tool")
 st.markdown("Generate, validate, and export pitch keyword lists in seconds.")
 st.divider()
 
-# ── Sidebar — API Keys ────────────────────────────────────────────
+# ── Load API keys from Streamlit secrets ─────────────────────────
+gemini_key  = st.secrets.get("GEMINI_KEY", "")
+semrush_key = st.secrets.get("SEMRUSH_KEY", "")
+
+# ── Sidebar ───────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 🔑 API Keys")
-    gemini_key  = st.text_input("Gemini API key", type="password",
-        help="Get a free key at aistudio.google.com")
-    semrush_key = st.text_input("SEMrush API key (optional)", type="password",
-        help="Leave empty to skip search volumes")
-    st.caption("Keys are not stored — entered fresh each session.")
-    st.divider()
     st.markdown("### ℹ️ How to use")
-    st.caption("1. Enter your API keys above")
-    st.caption("2. Fill in the pitch details")
+    st.caption("1. Fill in the pitch details")
+    st.caption("2. Add nav categories from the client's website")
     st.caption("3. Click Generate")
     st.caption("4. Download your Excel or CSV")
+    st.divider()
+    st.markdown("### 🔑 API Keys")
+    if gemini_key:
+        st.success("Gemini key loaded ✓")
+    else:
+        gemini_key = st.text_input("Gemini API key", type="password",
+            help="Get a free key at aistudio.google.com")
+    if semrush_key:
+        st.success("SEMrush key loaded ✓")
+    else:
+        semrush_key = st.text_input("SEMrush API key (optional)", type="password",
+            help="Leave empty to skip search volumes")
 
 # ── Main form ─────────────────────────────────────────────────────
 col1, col2 = st.columns(2)
