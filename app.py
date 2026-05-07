@@ -13,6 +13,48 @@ from openpyxl.utils import get_column_letter
 
 st.set_page_config(page_title="EXD Keyword Research Tool", page_icon="⚡", layout="centered")
 
+# ── Password protection ───────────────────────────────────────────
+def check_password():
+    try:
+        app_password = st.secrets.get("APP_PASSWORD", "") or os.environ.get("APP_PASSWORD", "")
+    except:
+        app_password = os.environ.get("APP_PASSWORD", "")
+
+    if not app_password:
+        return True  # No password set — allow access
+
+    if st.session_state.get("authenticated"):
+        return True
+
+    st.markdown("""
+    <style>
+    .login-box { max-width: 380px; margin: 6rem auto; text-align: center; }
+    .login-box h2 { font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 0.5rem; }
+    .login-box p { font-size: 14px; color: #888; margin-bottom: 2rem; }
+    </style>
+    <div class="login-box">
+        <div style="font-size:36px;margin-bottom:1rem">⚡</div>
+        <h2>EXD Keyword Research Tool</h2>
+        <p>Enter your password to continue</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        pwd = st.text_input("Password", type="password", label_visibility="collapsed",
+                            placeholder="Enter password...")
+        if st.button("Login", use_container_width=True):
+            if pwd == app_password:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Incorrect password. Please try again.")
+    return False
+
+if not check_password():
+    st.stop()
+# ─────────────────────────────────────────────────────────────────
+
 st.markdown("""
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -387,58 +429,82 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     if dfs_ok:
         dfs_creds   = base64.b64encode(f"{dfs_login}:{dfs_password}".encode()).decode()
         dfs_headers = {"Authorization": f"Basic {dfs_creds}", "Content-Type": "application/json"}
-        progress    = st.progress(0, text="Fetching search volumes from DataForSEO...")
+        dfs_location = DFS_LOCATIONS.get(market_label, market_label)
 
-        def fetch_volume(keyword):
+        with st.spinner("Fetching search volumes from DataForSEO..."):
+            # Batch ALL keywords in a single API call — much faster than one-by-one
             try:
-                dfs_location = DFS_LOCATIONS.get(market_label, market_label)
-                payload = [{"keywords": [keyword], "location_name": dfs_location, "language_name": "English"}]
-                res = requests.post(
+                all_kw_texts = [kw["keyword"] for kw in all_keywords]
+                payload = [{"keywords": all_kw_texts, "location_name": dfs_location, "language_name": "English"}]
+                res  = requests.post(
                     "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
-                    headers=dfs_headers, json=payload, timeout=15)
-                data  = res.json()
-                if data.get("status_code") != 20000:
-                    return None
+                    headers=dfs_headers, json=payload, timeout=60)
+                data = res.json()
+                # Debug — show raw response structure
+                st.write("DEBUG — DataForSEO response:", data)
                 items = data.get("tasks", [{}])[0].get("result", [{}])[0].get("items", [])
-                return items[0].get("search_volume") or None if items else None
-            except:
-                return None
+                vol_map = {item["keyword"]: item.get("search_volume") for item in items if item.get("keyword")}
+            except Exception as e:
+                st.warning(f"⚠️ Volume fetch failed: {str(e)}")
+                vol_map = {}
 
-        def get_substitutes(original, tag, category, lang_name):
-            try:
-                sub_prompt = (f'Keyword "{original}" has zero search volume in {market_label}. '
-                              f'Suggest 3 alternatives, more commonly searched. '
-                              f'Category: {category}, Tag: {tag}, Language: {lang_name}. '
-                              f'Return ONLY a JSON array: ["alt1","alt2","alt3"]')
-                r = genai_client.models.generate_content(model="gemini-2.5-flash-lite", contents=sub_prompt)
-                m = re.search(r'\[[\s\S]*?\]', r.text)
-                return json.loads(m.group()) if m else []
-            except:
-                return []
-
-        zero_replaced = 0
-        for i, kw in enumerate(all_keywords):
-            vol = fetch_volume(kw["keyword"])
-            if not vol:
-                for sub in get_substitutes(kw["keyword"], kw["tag"], kw["category"], kw["language"]):
-                    sub_vol = fetch_volume(sub)
-                    if sub_vol and sub_vol > 0:
-                        all_keywords[i]["original_keyword"] = kw["keyword"]
-                        all_keywords[i]["keyword"]  = sub
-                        all_keywords[i]["volume"]   = sub_vol
-                        all_keywords[i]["combined"] = f"{sub}, {kw['category']}, {kw['tag']}"
-                        zero_replaced += 1
-                        break
-                else:
+            # Assign volumes — collect zero-volume keywords for substitution
+            zero_kws = []
+            for i, kw in enumerate(all_keywords):
+                vol = vol_map.get(kw["keyword"])
+                if vol and vol > 0:
                     all_keywords[i]["volume"] = vol
-            else:
-                all_keywords[i]["volume"] = vol
-            progress.progress((i+1)/len(all_keywords),
-                text=f"Fetching volumes {i+1}/{len(all_keywords)}..." +
-                     (f" ({zero_replaced} replaced)" if zero_replaced else ""))
-        progress.empty()
-        if zero_replaced:
-            st.info(f"ℹ️ {zero_replaced} keyword(s) replaced due to zero search volume.")
+                else:
+                    all_keywords[i]["volume"] = None
+                    zero_kws.append(i)
+
+            # Handle zero-volume keywords — get substitutes and batch fetch them
+            if zero_kws:
+                def get_substitutes_batch(keywords_with_meta):
+                    sub_prompt = (
+                        f"These keywords have zero search volume in {market_label}. "
+                        f"For each, suggest 1 better alternative that means the same thing and is more commonly searched. "
+                        f"Keywords: {json.dumps([k['keyword'] for k in keywords_with_meta])}. "
+                        f"Return ONLY a JSON array of strings, one substitute per keyword in the same order: "
+                        f'["sub1","sub2","sub3"]'
+                    )
+                    try:
+                        r = genai_client.models.generate_content(model="gemini-2.5-flash-lite", contents=sub_prompt)
+                        m = re.search(r'\[[\s\S]*?\]', r.text)
+                        return json.loads(m.group()) if m else []
+                    except:
+                        return []
+
+                zero_meta   = [all_keywords[i] for i in zero_kws]
+                substitutes = get_substitutes_batch(zero_meta)
+
+                if substitutes:
+                    # Batch fetch volumes for all substitutes at once
+                    try:
+                        sub_payload = [{"keywords": substitutes, "location_name": dfs_location, "language_name": "English"}]
+                        sub_res  = requests.post(
+                            "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
+                            headers=dfs_headers, json=sub_payload, timeout=60)
+                        sub_data  = sub_res.json()
+                        sub_items = sub_data.get("tasks", [{}])[0].get("result", [{}])[0].get("items", [])
+                        sub_vol_map = {item["keyword"]: item.get("search_volume") for item in sub_items if item.get("keyword")}
+                    except:
+                        sub_vol_map = {}
+
+                    zero_replaced = 0
+                    for idx, orig_i in enumerate(zero_kws):
+                        if idx < len(substitutes):
+                            sub = substitutes[idx]
+                            sub_vol = sub_vol_map.get(sub)
+                            if sub_vol and sub_vol > 0:
+                                all_keywords[orig_i]["original_keyword"] = all_keywords[orig_i]["keyword"]
+                                all_keywords[orig_i]["keyword"]  = sub
+                                all_keywords[orig_i]["volume"]   = sub_vol
+                                all_keywords[orig_i]["combined"] = f"{sub}, {all_keywords[orig_i]['category']}, {all_keywords[orig_i]['tag']}"
+                                zero_replaced += 1
+
+                    if zero_replaced:
+                        st.info(f"ℹ️ {zero_replaced} keyword(s) replaced due to zero search volume.")
 
     st.session_state.generating = False
     st.success(f"✅ {len(all_keywords)} keywords generated!")
