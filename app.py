@@ -61,6 +61,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+DFS_LOCATIONS = {
+    "Saudi Arabia": "Saudi Arabia",
+    "UAE":          "United Arab Emirates",
+    "Egypt":        "Egypt",
+    "Kuwait":       "Kuwait",
+    "Qatar":        "Qatar",
+    "Bahrain":      "Bahrain",
+    "Oman":         "Oman",
+    "Jordan":       "Jordan",
+    "Lebanon":      "Lebanon",
+    "United Kingdom": "United Kingdom",
+    "United States":  "United States",
+    "France":       "France",
+    "Germany":      "Germany",
+    "India":        "India",
+    "China":        "China",
+    "Japan":        "Japan",
+}
 MARKETS = {
     "Saudi Arabia":"sa","UAE":"ae","Egypt":"eg","Kuwait":"kw","Qatar":"qa",
     "Bahrain":"bh","Oman":"om","Jordan":"jo","Lebanon":"lb",
@@ -320,7 +338,7 @@ if generate:
             test_res = requests.post(
                 "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
                 headers={"Authorization": f"Basic {test_creds}", "Content-Type": "application/json"},
-                json=[{"keywords": ["test"], "location_name": market_label, "language_name": "English"}],
+                json=[{"keywords": ["test"], "location_name": DFS_LOCATIONS.get(market_label, market_label), "language_name": "English"}],
                 timeout=10
             )
             test_data = test_res.json()
@@ -373,7 +391,8 @@ Return ONLY a raw JSON array, no markdown, no explanation:
 
         def fetch_volume(keyword):
             try:
-                payload = [{"keywords": [keyword], "location_name": market_label, "language_name": "English"}]
+                dfs_location = DFS_LOCATIONS.get(market_label, market_label)
+                payload = [{"keywords": [keyword], "location_name": dfs_location, "language_name": "English"}]
                 res = requests.post(
                     "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
                     headers=dfs_headers, json=payload, timeout=15)
