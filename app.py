@@ -44,6 +44,22 @@ st.markdown("""
     .stDownloadButton > button:hover { background: #333; border: none; color: white; }
     div[data-testid="stMetricValue"] { font-size: 2rem !important; }
     .stat-box { background: #f8f8f8; border-radius: 8px; padding: 1rem; text-align: center; }
+    /* Tag buttons */
+    div[data-testid="stHorizontalBlock"] .stButton > button {
+        background: #f0f0f0 !important;
+        color: #1a1a1a !important;
+        border: 1px solid #ddd !important;
+        border-radius: 20px !important;
+        padding: 2px 12px !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        width: auto !important;
+    }
+    div[data-testid="stHorizontalBlock"] .stButton > button:hover {
+        background: #ffe0e0 !important;
+        border-color: #ffaaaa !important;
+        color: #cc0000 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -114,14 +130,40 @@ with col2:
 st.divider()
 
 col3, col4 = st.columns(2)
+
 with col3:
     st.markdown("### Nav categories (tags)")
-    nav_input = st.text_area(
-        "One per line — paste from client's website menu",
-        placeholder="Honey\nRoyal Jelly\nSupplements\nBrand",
-        height=130,
-        label_visibility="collapsed"
+
+    # Initialize tag list in session state
+    if "nav_tags" not in st.session_state:
+        st.session_state.nav_tags = []
+
+    # Input field
+    new_tag = st.text_input(
+        "nav_tag_input",
+        placeholder="Type a category and press Enter...",
+        label_visibility="collapsed",
+        key="nav_tag_input"
     )
+
+    # Add tag on Enter (when value changes and is non-empty)
+    if new_tag and new_tag not in st.session_state.nav_tags:
+        st.session_state.nav_tags.append(new_tag.strip())
+        st.rerun()
+
+    # Display tags with remove buttons
+    if st.session_state.nav_tags:
+        cols = st.columns(len(st.session_state.nav_tags))
+        for idx, tag in enumerate(st.session_state.nav_tags):
+            with cols[idx]:
+                if st.button(f"{tag} ✕", key=f"remove_tag_{idx}",
+                    help=f"Remove '{tag}'"):
+                    st.session_state.nav_tags.remove(tag)
+                    st.rerun()
+    else:
+        st.caption("No categories added yet — type above and press Enter")
+
+    nav_input = "\n".join(st.session_state.nav_tags)
 
 with col4:
     st.markdown("### Seed keywords (optional)")
@@ -146,8 +188,8 @@ if generate:
     if not client_name:
         st.error("Please enter a client name.")
         st.stop()
-    if not nav_input.strip():
-        st.error("Please enter at least one nav category.")
+    if not nav_input.strip() or not st.session_state.nav_tags:
+        st.error("Please add at least one nav category.")
         st.stop()
 
     nav_categories = [x.strip() for x in nav_input.strip().split("\n") if x.strip()]
