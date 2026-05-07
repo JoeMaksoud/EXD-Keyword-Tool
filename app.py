@@ -117,10 +117,15 @@ with st.sidebar:
         st.success("Gemini ✓")
     else:
         gemini_key = st.text_input("Gemini API key", type="password")
+    st.caption("DataForSEO credentials (optional — for search volumes)")
     if dfs_login and dfs_password:
         st.success("DataForSEO ✓")
+        # Allow override in case secrets are wrong
+        override = st.checkbox("Override credentials")
+        if override:
+            dfs_login    = st.text_input("DataForSEO login (email)", value=dfs_login, key="dfs_login_input")
+            dfs_password = st.text_input("DataForSEO password", type="password", key="dfs_pass_input")
     else:
-        st.caption("DataForSEO credentials (optional — for search volumes)")
         dfs_login    = st.text_input("DataForSEO login (email)", key="dfs_login_input")
         dfs_password = st.text_input("DataForSEO password", type="password", key="dfs_pass_input")
 
@@ -263,8 +268,6 @@ st.divider()
 
 if "generating" not in st.session_state:
     st.session_state.generating = False
-if "stop_requested" not in st.session_state:
-    st.session_state.stop_requested = False
 
 st.markdown("""<style>
 .gen-btn div[data-testid="stButton"] > button {
@@ -273,28 +276,11 @@ st.markdown("""<style>
     font-weight:600 !important; color:#fff !important; padding:0.7rem !important;
 }
 .gen-btn div[data-testid="stButton"] > button:hover { background:#ea6c0a !important; }
-.stop-btn div[data-testid="stButton"] > button {
-    background:#2a2a2a !important; border:1.5px solid #555 !important;
-    border-radius:10px !important; font-size:15px !important;
-    font-weight:600 !important; color:#888 !important; padding:0.7rem !important;
-}
-.stop-btn div[data-testid="stButton"] > button:hover {
-    background:#3a1a1a !important; border-color:#f97316 !important; color:#f97316 !important;
-}
 </style>""", unsafe_allow_html=True)
 
-gb_col, sb_col = st.columns([3, 1])
-with gb_col:
-    st.markdown('<div class="gen-btn">', unsafe_allow_html=True)
-    generate = st.button("⚡  Generate Keywords", key="generate_btn", use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-with sb_col:
-    st.markdown('<div class="stop-btn">', unsafe_allow_html=True)
-    stop_clicked = st.button("⏹ Stop", key="stop_btn", use_container_width=True,
-                             disabled=not st.session_state.generating)
-    st.markdown('</div>', unsafe_allow_html=True)
-    if stop_clicked:
-        st.session_state.stop_requested = True
+st.markdown('<div class="gen-btn">', unsafe_allow_html=True)
+generate = st.button("⚡  Generate Keywords", key="generate_btn", use_container_width=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
 if generate:
     st.session_state.generating = True
@@ -323,13 +309,27 @@ if generate:
     qtype_code        = st.session_state.selected_qt
     selected_lang_obj = [l for l in LANGUAGES if l["code"] in st.session_state.selected_langs]
 
-    import threading, base64
-
-    stop_event = threading.Event()
-    results_container = []
-    error_container   = []
-
+    import base64
     genai_client = genai.Client(api_key=gemini_key)
+
+    # Test DataForSEO credentials before starting
+    dfs_ok = False
+    if dfs_login and dfs_password:
+        try:
+            test_creds = base64.b64encode(f"{dfs_login}:{dfs_password}".encode()).decode()
+            test_res = requests.post(
+                "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
+                headers={"Authorization": f"Basic {test_creds}", "Content-Type": "application/json"},
+                json=[{"keywords": ["test"], "location_name": market_label, "language_name": "English"}],
+                timeout=10
+            )
+            test_data = test_res.json()
+            if test_data.get("status_code") == 20000:
+                dfs_ok = True
+            else:
+                st.warning(f"⚠️ DataForSEO connected but returned error: {test_data.get('status_message', 'Unknown error')}. Keywords will generate without volumes.")
+        except Exception as e:
+            st.warning(f"⚠️ Could not connect to DataForSEO: {str(e)}. Keywords will generate without volumes.")
 
     def run_for_language(lang_name):
         prompt = f"""You are an expert SEO strategist. Client: "{client_name}", market: "{market_label}".{web_note}
@@ -344,7 +344,8 @@ Rules:
 - Add "validation": "confirmed" if clearly on-brand, "inferred" if plausible but less certain
 Return ONLY a raw JSON array, no markdown, no explanation:
 [{{"keyword":"...","category":"Branded","tag":"...","validation":"confirmed"}}]"""
-        response = genai_client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+        response = genai_client.models.generate_content(
+            model="gemini-2.0-flash", contents=prompt)
         match = re.search(r'\[[\s\S]*\]', response.text)
         if not match:
             raise ValueError(f"Could not parse response for {lang_name}")
@@ -355,106 +356,70 @@ Return ONLY a raw JSON array, no markdown, no explanation:
             kw["combined"] = f"{kw['keyword']}, {kw['category']}, {kw['tag']}"
         return kws
 
-    def generation_worker():
-        try:
-            all_kws = []
-            for lang in selected_lang_obj:
-                if stop_event.is_set():
-                    break
-                kws = run_for_language(lang["name"])
-                all_kws.extend(kws)
+    all_keywords = []
+    for li, lang in enumerate(selected_lang_obj):
+        with st.spinner(f"⏳ Generating {lang['name']} keywords ({li+1}/{len(selected_lang_obj)})..."):
+            try:
+                all_keywords.extend(run_for_language(lang["name"]))
+            except Exception as e:
+                st.session_state.generating = False
+                st.error(f"Error for {lang['name']}: {str(e)}")
+                st.stop()
 
-            if not stop_event.is_set() and dfs_login and dfs_password:
-                dfs_creds   = base64.b64encode(f"{dfs_login}:{dfs_password}".encode()).decode()
-                dfs_headers = {"Authorization": f"Basic {dfs_creds}", "Content-Type": "application/json"}
+    if dfs_ok:
+        dfs_creds   = base64.b64encode(f"{dfs_login}:{dfs_password}".encode()).decode()
+        dfs_headers = {"Authorization": f"Basic {dfs_creds}", "Content-Type": "application/json"}
+        progress    = st.progress(0, text="Fetching search volumes from DataForSEO...")
 
-                def fetch_volume(keyword):
-                    try:
-                        payload = [{"keywords": [keyword], "location_name": market_label, "language_name": "English"}]
-                        res = requests.post(
-                            "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
-                            headers=dfs_headers, json=payload, timeout=15
-                        )
-                        data = res.json()
-                        items = data.get("tasks", [{}])[0].get("result", [{}])[0].get("items", [])
-                        return items[0].get("search_volume") or None if items else None
-                    except:
-                        return None
+        def fetch_volume(keyword):
+            try:
+                payload = [{"keywords": [keyword], "location_name": market_label, "language_name": "English"}]
+                res = requests.post(
+                    "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
+                    headers=dfs_headers, json=payload, timeout=15)
+                data  = res.json()
+                if data.get("status_code") != 20000:
+                    return None
+                items = data.get("tasks", [{}])[0].get("result", [{}])[0].get("items", [])
+                return items[0].get("search_volume") or None if items else None
+            except:
+                return None
 
-                def get_substitutes(original, tag, category, lang_name):
-                    try:
-                        sub_prompt = (f'Keyword "{original}" has zero search volume in {market_label}. '
-                                      f'Suggest 3 alternatives, more commonly searched. '
-                                      f'Category: {category}, Tag: {tag}, Language: {lang_name}. '
-                                      f'Return ONLY a JSON array: ["alt1","alt2","alt3"]')
-                        r = genai_client.models.generate_content(model="gemini-2.5-flash", contents=sub_prompt)
-                        m = re.search(r'\[[\s\S]*?\]', r.text)
-                        return json.loads(m.group()) if m else []
-                    except:
-                        return []
+        def get_substitutes(original, tag, category, lang_name):
+            try:
+                sub_prompt = (f'Keyword "{original}" has zero search volume in {market_label}. '
+                              f'Suggest 3 alternatives, more commonly searched. '
+                              f'Category: {category}, Tag: {tag}, Language: {lang_name}. '
+                              f'Return ONLY a JSON array: ["alt1","alt2","alt3"]')
+                r = genai_client.models.generate_content(model="gemini-2.0-flash", contents=sub_prompt)
+                m = re.search(r'\[[\s\S]*?\]', r.text)
+                return json.loads(m.group()) if m else []
+            except:
+                return []
 
-                for i, kw in enumerate(all_kws):
-                    if stop_event.is_set():
+        zero_replaced = 0
+        for i, kw in enumerate(all_keywords):
+            vol = fetch_volume(kw["keyword"])
+            if not vol:
+                for sub in get_substitutes(kw["keyword"], kw["tag"], kw["category"], kw["language"]):
+                    sub_vol = fetch_volume(sub)
+                    if sub_vol and sub_vol > 0:
+                        all_keywords[i]["original_keyword"] = kw["keyword"]
+                        all_keywords[i]["keyword"]  = sub
+                        all_keywords[i]["volume"]   = sub_vol
+                        all_keywords[i]["combined"] = f"{sub}, {kw['category']}, {kw['tag']}"
+                        zero_replaced += 1
                         break
-                    vol = fetch_volume(kw["keyword"])
-                    if not vol:
-                        for sub in get_substitutes(kw["keyword"], kw["tag"], kw["category"], kw["language"]):
-                            if stop_event.is_set():
-                                break
-                            sub_vol = fetch_volume(sub)
-                            if sub_vol and sub_vol > 0:
-                                all_kws[i]["original_keyword"] = kw["keyword"]
-                                all_kws[i]["keyword"]  = sub
-                                all_kws[i]["volume"]   = sub_vol
-                                all_kws[i]["combined"] = f"{sub}, {kw['category']}, {kw['tag']}"
-                                break
-                        else:
-                            all_kws[i]["volume"] = vol
-                    else:
-                        all_kws[i]["volume"] = vol
-
-            results_container.append(all_kws)
-        except Exception as e:
-            error_container.append(str(e))
-
-    # Start generation in background thread
-    thread = threading.Thread(target=generation_worker, daemon=True)
-    thread.start()
-
-    # Poll loop — UI stays responsive, stop button works
-    status_placeholder  = st.empty()
-    stop_placeholder    = st.empty()
-    poll_count = 0
-
-    while thread.is_alive():
-        with stop_placeholder.container():
-            if st.button("⏹ Stop generation", key=f"stop_live_{poll_count}", type="secondary"):
-                stop_event.set()
-                st.session_state.stop_requested = True
-        with status_placeholder:
-            st.info("⏳ Generating keywords... click Stop to cancel.")
-        poll_count += 1
-        thread.join(timeout=2)
-
-    stop_placeholder.empty()
-    status_placeholder.empty()
-
-    if st.session_state.stop_requested:
-        st.session_state.generating = False
-        st.warning("⏹ Generation stopped. Any completed results are shown below.")
-        if not results_container:
-            st.stop()
-
-    if error_container:
-        st.session_state.generating = False
-        st.error(f"Error: {error_container[0]}")
-        st.stop()
-
-    all_keywords = results_container[0] if results_container else []
-    if not all_keywords:
-        st.session_state.generating = False
-        st.warning("No keywords were generated. Please try again.")
-        st.stop()
+                else:
+                    all_keywords[i]["volume"] = vol
+            else:
+                all_keywords[i]["volume"] = vol
+            progress.progress((i+1)/len(all_keywords),
+                text=f"Fetching volumes {i+1}/{len(all_keywords)}..." +
+                     (f" ({zero_replaced} replaced)" if zero_replaced else ""))
+        progress.empty()
+        if zero_replaced:
+            st.info(f"ℹ️ {zero_replaced} keyword(s) replaced due to zero search volume.")
 
     st.session_state.generating = False
     st.success(f"✅ {len(all_keywords)} keywords generated!")
@@ -469,8 +434,8 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     m1.metric("Total", len(all_keywords))
     m2.metric("Branded", branded_n)
     m3.metric("Generic", generic_n)
-    m4.metric("Total volume" if dfs_login and dfs_password else "Confirmed",
-              f"{total_vol:,}" if dfs_login and dfs_password else confirmed_n)
+    m4.metric("Total volume" if dfs_ok else "Confirmed",
+              f"{total_vol:,}" if dfs_ok else confirmed_n)
     st.divider()
 
     import pandas as pd
