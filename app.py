@@ -107,9 +107,9 @@ with col2:
     query_type = st.radio("Query type", list(QTYPE_INSTRUCTIONS.keys()), index=2)
     c1, c2 = st.columns(2)
     with c1:
-        branded_count = st.selectbox("Branded keywords", [5, 7, 10], index=2)
+        branded_count = st.number_input("Branded keywords", min_value=0, max_value=1000, value=10, step=1)
     with c2:
-        generic_count = st.selectbox("Generic keywords", [20, 30, 40, 50], index=1)
+        generic_count = st.number_input("Generic keywords", min_value=0, max_value=1000, value=30, step=1)
 
 st.divider()
 
@@ -196,22 +196,69 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     # Step 2: Volumes
     if semrush_key:
         progress = st.progress(0, text="Fetching search volumes from SEMrush...")
-        for i, kw in enumerate(keywords):
+
+        def fetch_volume(keyword, market_code):
             try:
                 res   = requests.get("https://api.semrush.com/", params={
                     "type": "phrase_this", "key": semrush_key,
                     "export_columns": "Ph,Nq", "database": market_code,
-                    "phrase": kw["keyword"], "export_escape": "1"
+                    "phrase": keyword, "export_escape": "1"
                 }, timeout=10)
                 lines = res.text.strip().split("\n")
                 if len(lines) >= 2:
                     vol = lines[1].split(";")[1].replace('"','').strip()
-                    keywords[i]["volume"] = int(vol) if vol.isdigit() else None
+                    return int(vol) if vol.isdigit() else None
             except:
-                keywords[i]["volume"] = None
+                return None
+
+        def get_substitute_keywords(original_kw, tag, category, language, market_label):
+            """Ask Gemini for 3 alternative keywords when SV is 0"""
+            sub_prompt = f"""The keyword "{original_kw}" has zero search volume in {market_label}.
+Suggest 3 alternative keywords that mean the same thing but are more commonly searched.
+Category: {category}, Tag: {tag}, Language: {language}.
+Return ONLY a JSON array of strings, no explanation:
+["alternative 1","alternative 2","alternative 3"]"""
+            try:
+                genai.configure(api_key=gemini_key)
+                model    = genai.GenerativeModel("gemini-2.5-flash")
+                response = model.generate_content(sub_prompt)
+                match    = re.search(r'\[[\s\S]*?\]', response.text)
+                if match:
+                    return json.loads(match.group())
+            except:
+                pass
+            return []
+
+        zero_replacements = 0
+        for i, kw in enumerate(keywords):
+            vol = fetch_volume(kw["keyword"], market_code)
+
+            # If volume is 0 or None, try to find a substitute
+            if not vol:
+                substitutes = get_substitute_keywords(
+                    kw["keyword"], kw["tag"], kw["category"], language, market_label
+                )
+                for sub in substitutes:
+                    sub_vol = fetch_volume(sub, market_code)
+                    if sub_vol and sub_vol > 0:
+                        keywords[i]["original_keyword"] = kw["keyword"]
+                        keywords[i]["keyword"]  = sub
+                        keywords[i]["volume"]   = sub_vol
+                        keywords[i]["combined"] = f"{sub}, {kw['category']}, {kw['tag']}"
+                        zero_replacements += 1
+                        break
+                else:
+                    keywords[i]["volume"] = vol  # keep None/0 if no substitute found
+            else:
+                keywords[i]["volume"] = vol
+
             progress.progress((i + 1) / len(keywords),
-                text=f"Fetching volumes {i+1}/{len(keywords)}...")
+                text=f"Fetching volumes {i+1}/{len(keywords)}..." +
+                     (f" ({zero_replacements} zero-volume keywords replaced)" if zero_replacements else ""))
+
         progress.empty()
+        if zero_replacements:
+            st.info(f"ℹ️ {zero_replacements} keyword(s) with zero search volume were automatically replaced with higher-volume alternatives.")
 
     # ── Results ───────────────────────────────────────────────────
     st.success(f"✅ {len(keywords)} keywords generated!")
@@ -234,23 +281,25 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     # Table
     import pandas as pd
     df = pd.DataFrame([{
-        "Keyword":       k["keyword"],
-        "Category":      k["category"],
-        "Tag":           k["tag"],
-        "Language":      k["language"],
-        "Search Volume": k.get("volume") or "",
-        "Validation":    k.get("validation") or "",
-        "Combined Entry":k["combined"]
+        "Keyword":          k["keyword"],
+        "Original (if replaced)": k.get("original_keyword", ""),
+        "Category":         k["category"],
+        "Tag":              k["tag"],
+        "Language":         k["language"],
+        "Search Volume":    k.get("volume") or "",
+        "Validation":       k.get("validation") or "",
+        "Combined Entry":   k["combined"]
     } for k in keywords])
 
     st.dataframe(df, use_container_width=True, height=450,
         column_config={
-            "Keyword":       st.column_config.TextColumn(width="large"),
-            "Category":      st.column_config.TextColumn(width="small"),
-            "Tag":           st.column_config.TextColumn(width="medium"),
-            "Search Volume": st.column_config.NumberColumn(width="small"),
-            "Validation":    st.column_config.TextColumn(width="small"),
-            "Combined Entry":st.column_config.TextColumn(width="large"),
+            "Keyword":                  st.column_config.TextColumn(width="large"),
+            "Original (if replaced)":   st.column_config.TextColumn(width="medium"),
+            "Category":                 st.column_config.TextColumn(width="small"),
+            "Tag":                      st.column_config.TextColumn(width="medium"),
+            "Search Volume":            st.column_config.NumberColumn(width="small"),
+            "Validation":               st.column_config.TextColumn(width="small"),
+            "Combined Entry":           st.column_config.TextColumn(width="large"),
         }
     )
 
@@ -263,11 +312,11 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     # CSV
     csv_buf = io.StringIO()
     writer  = csv.DictWriter(csv_buf,
-        fieldnames=["keyword","category","tag","language","volume","validation","combined"])
+        fieldnames=["keyword","original_keyword","category","tag","language","volume","validation","combined"])
     writer.writeheader()
     for kw in keywords:
         writer.writerow({k: kw.get(k, "") for k in
-            ["keyword","category","tag","language","volume","validation","combined"]})
+            ["keyword","original_keyword","category","tag","language","volume","validation","combined"]})
 
     # Excel
     wb = Workbook()
