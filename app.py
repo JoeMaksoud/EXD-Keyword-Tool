@@ -432,7 +432,6 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         dfs_location = DFS_LOCATIONS.get(market_label, market_label)
 
         with st.spinner("Fetching search volumes from DataForSEO..."):
-            # Batch ALL keywords in a single API call — much faster than one-by-one
             try:
                 all_kw_texts = [kw["keyword"] for kw in all_keywords]
                 payload = [{"keywords": all_kw_texts, "location_name": dfs_location, "language_name": "English"}]
@@ -440,10 +439,14 @@ Return ONLY a raw JSON array, no markdown, no explanation:
                     "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
                     headers=dfs_headers, json=payload, timeout=60)
                 data = res.json()
-                # Debug — show raw response structure
-                st.write("DEBUG — DataForSEO response:", data)
-                items = data.get("tasks", [{}])[0].get("result", [{}])[0].get("items", [])
-                vol_map = {item["keyword"]: item.get("search_volume") for item in items if item.get("keyword")}
+                task  = data.get("tasks", [{}])[0]
+                items = task.get("result", []) or []
+                vol_map = {}
+                for item in items:
+                    kw  = item.get("keyword")
+                    vol = item.get("search_volume")
+                    if kw and vol is not None:
+                        vol_map[kw] = vol
             except Exception as e:
                 st.warning(f"⚠️ Volume fetch failed: {str(e)}")
                 vol_map = {}
