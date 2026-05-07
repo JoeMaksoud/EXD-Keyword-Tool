@@ -199,41 +199,56 @@ for i, qt in enumerate(QTYPES):
 # SECTION 4 — Tags
 st.markdown('<div class="section-hdr"><div class="section-num">4</div><div class="section-ttl">Tags</div></div>', unsafe_allow_html=True)
 
-tag_col, btn_col = st.columns([5, 1])
-with tag_col:
-    new_tag = st.text_input("tag", placeholder="e.g. Honey, Royal Jelly...", label_visibility="collapsed", key="tag_input")
-with btn_col:
-    st.markdown('<div class="add-btn">', unsafe_allow_html=True)
-    add_clicked = st.button("+ Add", key="add_tag_btn")
-    st.markdown('</div>', unsafe_allow_html=True)
+st.markdown("""<style>
+div[data-testid="stForm"] { border: none !important; padding: 0 !important; }
+div[data-testid="stForm"] div[data-testid="stButton"] > button {
+    background:#f97316 !important; border:none !important;
+    border-radius:8px !important; color:#fff !important;
+    font-weight:600 !important; width:100% !important;
+}
+div[data-testid="stForm"] div[data-testid="stButton"] > button:hover { background:#ea6c0a !important; }
+</style>""", unsafe_allow_html=True)
 
-if add_clicked and new_tag.strip():
-    tag_val = new_tag.strip()
-    if tag_val not in st.session_state.nav_tags:
-        st.session_state.nav_tags.append(tag_val)
-    st.rerun()
+with st.form(key="tag_form", clear_on_submit=True):
+    tc, bc = st.columns([5, 1])
+    with tc:
+        new_tag = st.text_input("tag", placeholder="e.g. Honey, Royal Jelly...", label_visibility="collapsed")
+    with bc:
+        add_clicked = st.form_submit_button("+ Add")
+    if add_clicked and new_tag.strip():
+        tag_val = new_tag.strip()
+        if tag_val not in st.session_state.nav_tags:
+            st.session_state.nav_tags.append(tag_val)
+        st.rerun()
 
 if st.session_state.nav_tags:
+    pills = "".join(
+        f'<span style="display:inline-flex;align-items:center;gap:6px;background:#1e1e1e;'
+        f'border:1px solid #444;border-radius:20px;padding:5px 14px;font-size:13px;'
+        f'color:#ddd;margin:3px 3px;">{tag}</span>'
+        for tag in st.session_state.nav_tags
+    )
+    st.markdown(f'<div style="display:flex;flex-wrap:wrap;margin-top:6px;">{pills}</div>', unsafe_allow_html=True)
+    st.markdown("<p style='font-size:12px;color:#666;margin:10px 0 4px;'>Click to remove:</p>", unsafe_allow_html=True)
     st.markdown("""<style>
     div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
-        background:#1e1e1e !important; border:1px solid #444 !important;
-        border-radius:20px !important; color:#ddd !important;
-        font-size:13px !important; font-weight:400 !important;
-        padding:4px 14px !important; height:auto !important;
-        width:auto !important; margin:3px !important;
+        background:transparent !important; border:1px solid #444 !important;
+        border-radius:20px !important; color:#888 !important;
+        font-size:12px !important; padding:3px 10px !important;
+        height:auto !important; width:auto !important;
     }
     div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button:hover {
         border-color:#f97316 !important; color:#f97316 !important;
     }
     </style>""", unsafe_allow_html=True)
-    cols = st.columns(len(st.session_state.nav_tags))
+    rm_cols = st.columns(len(st.session_state.nav_tags))
     for idx, tag in enumerate(st.session_state.nav_tags):
-        with cols[idx]:
-            if st.button(f"{tag} ×", key=f"rm_{idx}"):
+        with rm_cols[idx]:
+            if st.button(f"✕ {tag}", key=f"rm_{idx}"):
                 st.session_state.nav_tags.pop(idx)
                 st.rerun()
 else:
-    st.caption("No tags yet — type above and click + Add")
+    st.caption("No tags yet — type above and press Enter or click + Add")
 
 # SECTION 5
 st.markdown('<div class="section-hdr"><div class="section-num">5</div><div class="section-ttl">Seed Keywords <span class="section-sub">— optional</span></div></div>', unsafe_allow_html=True)
@@ -241,18 +256,56 @@ seeds_input = st.text_area("seeds", height=100, label_visibility="collapsed",
     placeholder="One per line — specific keywords that must be included")
 
 st.divider()
-st.markdown('<div class="gen-btn">', unsafe_allow_html=True)
-generate = st.button("⚡  Generate Keywords", key="generate_btn")
-st.markdown('</div>', unsafe_allow_html=True)
+
+if "generating" not in st.session_state:
+    st.session_state.generating = False
+if "stop_requested" not in st.session_state:
+    st.session_state.stop_requested = False
+
+st.markdown("""<style>
+.gen-btn div[data-testid="stButton"] > button {
+    background:#f97316 !important; border:none !important;
+    border-radius:10px !important; font-size:15px !important;
+    font-weight:600 !important; color:#fff !important; padding:0.7rem !important;
+}
+.gen-btn div[data-testid="stButton"] > button:hover { background:#ea6c0a !important; }
+.stop-btn div[data-testid="stButton"] > button {
+    background:#2a2a2a !important; border:1.5px solid #555 !important;
+    border-radius:10px !important; font-size:15px !important;
+    font-weight:600 !important; color:#888 !important; padding:0.7rem !important;
+}
+.stop-btn div[data-testid="stButton"] > button:hover {
+    background:#3a1a1a !important; border-color:#f97316 !important; color:#f97316 !important;
+}
+</style>""", unsafe_allow_html=True)
+
+gb_col, sb_col = st.columns([3, 1])
+with gb_col:
+    st.markdown('<div class="gen-btn">', unsafe_allow_html=True)
+    generate = st.button("⚡  Generate Keywords", key="generate_btn", use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+with sb_col:
+    st.markdown('<div class="stop-btn">', unsafe_allow_html=True)
+    stop_clicked = st.button("⏹ Stop", key="stop_btn", use_container_width=True,
+                             disabled=not st.session_state.generating)
+    st.markdown('</div>', unsafe_allow_html=True)
+    if stop_clicked:
+        st.session_state.stop_requested = True
 
 if generate:
+    st.session_state.generating = True
+    st.session_state.stop_requested = False
+
     if not gemini_key:
+        st.session_state.generating = False
         st.error("Please enter your Gemini API key in the sidebar.")
         st.stop()
     if not client_name:
+        st.session_state.generating = False
         st.error("Please enter a client name.")
         st.stop()
     if not st.session_state.nav_tags:
+        st.session_state.generating = False
         st.error("Please add at least one tag.")
         st.stop()
 
@@ -293,10 +346,15 @@ Return ONLY a raw JSON array, no markdown, no explanation:
 
     all_keywords = []
     for li, lang in enumerate(selected_lang_obj):
+        if st.session_state.stop_requested:
+            st.warning("⏹ Generation stopped by user.")
+            st.session_state.generating = False
+            st.stop()
         with st.spinner(f"Generating keywords in {lang['name']} ({li+1}/{len(selected_lang_obj)})..."):
             try:
                 all_keywords.extend(run_for_language(lang["name"]))
             except Exception as e:
+                st.session_state.generating = False
                 st.error(f"Error for {lang['name']}: {str(e)}")
                 st.stop()
 
@@ -347,6 +405,11 @@ Return ONLY a raw JSON array, no markdown, no explanation:
                     all_keywords[i]["volume"] = vol
             else:
                 all_keywords[i]["volume"] = vol
+            if st.session_state.stop_requested:
+                progress.empty()
+                st.warning("⏹ Stopped during volume fetch. Partial results shown below.")
+                st.session_state.generating = False
+                break
             progress.progress((i+1)/len(all_keywords),
                 text=f"Fetching volumes {i+1}/{len(all_keywords)}..." +
                      (f" ({zero_replaced} replaced)" if zero_replaced else ""))
@@ -354,6 +417,7 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         if zero_replaced:
             st.info(f"ℹ️ {zero_replaced} keyword(s) replaced due to zero search volume.")
 
+    st.session_state.generating = False
     st.success(f"✅ {len(all_keywords)} keywords generated!")
     st.divider()
 
