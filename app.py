@@ -299,6 +299,7 @@ with sb_col:
 if generate:
     st.session_state.generating = True
     st.session_state.stop_requested = False
+    st.session_state.results = None
 
     if not gemini_key:
         st.session_state.generating = False
@@ -322,7 +323,13 @@ if generate:
     qtype_code        = st.session_state.selected_qt
     selected_lang_obj = [l for l in LANGUAGES if l["code"] in st.session_state.selected_langs]
 
-    client = genai.Client(api_key=gemini_key)
+    import threading, base64
+
+    stop_event = threading.Event()
+    results_container = []
+    error_container   = []
+
+    genai_client = genai.Client(api_key=gemini_key)
 
     def run_for_language(lang_name):
         prompt = f"""You are an expert SEO strategist. Client: "{client_name}", market: "{market_label}".{web_note}
@@ -337,7 +344,7 @@ Rules:
 - Add "validation": "confirmed" if clearly on-brand, "inferred" if plausible but less certain
 Return ONLY a raw JSON array, no markdown, no explanation:
 [{{"keyword":"...","category":"Branded","tag":"...","validation":"confirmed"}}]"""
-        response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+        response = genai_client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         match = re.search(r'\[[\s\S]*\]', response.text)
         if not match:
             raise ValueError(f"Could not parse response for {lang_name}")
@@ -348,81 +355,104 @@ Return ONLY a raw JSON array, no markdown, no explanation:
             kw["combined"] = f"{kw['keyword']}, {kw['category']}, {kw['tag']}"
         return kws
 
-    all_keywords = []
-    for li, lang in enumerate(selected_lang_obj):
-        if st.session_state.stop_requested:
-            st.warning("⏹ Generation stopped by user.")
-            st.session_state.generating = False
-            st.stop()
-        with st.spinner(f"Generating keywords in {lang['name']} ({li+1}/{len(selected_lang_obj)})..."):
-            try:
-                all_keywords.extend(run_for_language(lang["name"]))
-            except Exception as e:
-                st.session_state.generating = False
-                st.error(f"Error for {lang['name']}: {str(e)}")
-                st.stop()
+    def generation_worker():
+        try:
+            all_kws = []
+            for lang in selected_lang_obj:
+                if stop_event.is_set():
+                    break
+                kws = run_for_language(lang["name"])
+                all_kws.extend(kws)
 
-    if dfs_login and dfs_password:
-        import base64
-        progress = st.progress(0, text="Fetching search volumes from DataForSEO...")
-        dfs_creds = base64.b64encode(f"{dfs_login}:{dfs_password}".encode()).decode()
-        dfs_headers = {"Authorization": f"Basic {dfs_creds}", "Content-Type": "application/json"}
+            if not stop_event.is_set() and dfs_login and dfs_password:
+                dfs_creds   = base64.b64encode(f"{dfs_login}:{dfs_password}".encode()).decode()
+                dfs_headers = {"Authorization": f"Basic {dfs_creds}", "Content-Type": "application/json"}
 
-        def fetch_volume(keyword):
-            try:
-                payload = [{"keywords": [keyword], "location_name": market_label, "language_name": "English"}]
-                res = requests.post(
-                    "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
-                    headers=dfs_headers, json=payload, timeout=15
-                )
-                data = res.json()
-                items = data.get("tasks", [{}])[0].get("result", [{}])[0].get("items", [])
-                if items:
-                    return items[0].get("search_volume") or None
-            except:
-                return None
+                def fetch_volume(keyword):
+                    try:
+                        payload = [{"keywords": [keyword], "location_name": market_label, "language_name": "English"}]
+                        res = requests.post(
+                            "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
+                            headers=dfs_headers, json=payload, timeout=15
+                        )
+                        data = res.json()
+                        items = data.get("tasks", [{}])[0].get("result", [{}])[0].get("items", [])
+                        return items[0].get("search_volume") or None if items else None
+                    except:
+                        return None
 
-        def get_substitutes(original, tag, category, lang_name):
-            try:
-                sub_prompt = (f'Keyword "{original}" has zero search volume in {market_label}. '
-                              f'Suggest 3 alternatives with same meaning, more commonly searched. '
-                              f'Category: {category}, Tag: {tag}, Language: {lang_name}. '
-                              f'Return ONLY a JSON array: ["alt1","alt2","alt3"]')
-                r = client.models.generate_content(model="gemini-2.5-flash", contents=sub_prompt)
-                m = re.search(r'\[[\s\S]*?\]', r.text)
-                if m: return json.loads(m.group())
-            except:
-                pass
-            return []
+                def get_substitutes(original, tag, category, lang_name):
+                    try:
+                        sub_prompt = (f'Keyword "{original}" has zero search volume in {market_label}. '
+                                      f'Suggest 3 alternatives, more commonly searched. '
+                                      f'Category: {category}, Tag: {tag}, Language: {lang_name}. '
+                                      f'Return ONLY a JSON array: ["alt1","alt2","alt3"]')
+                        r = genai_client.models.generate_content(model="gemini-2.5-flash", contents=sub_prompt)
+                        m = re.search(r'\[[\s\S]*?\]', r.text)
+                        return json.loads(m.group()) if m else []
+                    except:
+                        return []
 
-        zero_replaced = 0
-        for i, kw in enumerate(all_keywords):
-            if st.session_state.stop_requested:
-                progress.empty()
-                st.warning("⏹ Stopped during volume fetch. Partial results shown below.")
-                st.session_state.generating = False
-                break
-            vol = fetch_volume(kw["keyword"])
-            if not vol:
-                for sub in get_substitutes(kw["keyword"], kw["tag"], kw["category"], kw["language"]):
-                    sub_vol = fetch_volume(sub)
-                    if sub_vol and sub_vol > 0:
-                        all_keywords[i]["original_keyword"] = kw["keyword"]
-                        all_keywords[i]["keyword"]  = sub
-                        all_keywords[i]["volume"]   = sub_vol
-                        all_keywords[i]["combined"] = f"{sub}, {kw['category']}, {kw['tag']}"
-                        zero_replaced += 1
+                for i, kw in enumerate(all_kws):
+                    if stop_event.is_set():
                         break
-                else:
-                    all_keywords[i]["volume"] = vol
-            else:
-                all_keywords[i]["volume"] = vol
-            progress.progress((i+1)/len(all_keywords),
-                text=f"Fetching volumes {i+1}/{len(all_keywords)}..." +
-                     (f" ({zero_replaced} replaced)" if zero_replaced else ""))
-        progress.empty()
-        if zero_replaced:
-            st.info(f"ℹ️ {zero_replaced} keyword(s) replaced due to zero search volume.")
+                    vol = fetch_volume(kw["keyword"])
+                    if not vol:
+                        for sub in get_substitutes(kw["keyword"], kw["tag"], kw["category"], kw["language"]):
+                            if stop_event.is_set():
+                                break
+                            sub_vol = fetch_volume(sub)
+                            if sub_vol and sub_vol > 0:
+                                all_kws[i]["original_keyword"] = kw["keyword"]
+                                all_kws[i]["keyword"]  = sub
+                                all_kws[i]["volume"]   = sub_vol
+                                all_kws[i]["combined"] = f"{sub}, {kw['category']}, {kw['tag']}"
+                                break
+                        else:
+                            all_kws[i]["volume"] = vol
+                    else:
+                        all_kws[i]["volume"] = vol
+
+            results_container.append(all_kws)
+        except Exception as e:
+            error_container.append(str(e))
+
+    # Start generation in background thread
+    thread = threading.Thread(target=generation_worker, daemon=True)
+    thread.start()
+
+    # Poll loop — UI stays responsive, stop button works
+    status_placeholder  = st.empty()
+    stop_placeholder    = st.empty()
+
+    while thread.is_alive():
+        with stop_placeholder.container():
+            if st.button("⏹ Stop generation", key="stop_live", type="secondary"):
+                stop_event.set()
+                st.session_state.stop_requested = True
+        with status_placeholder:
+            st.info("⏳ Generating keywords... click Stop to cancel.")
+        thread.join(timeout=2)
+
+    stop_placeholder.empty()
+    status_placeholder.empty()
+
+    if st.session_state.stop_requested:
+        st.session_state.generating = False
+        st.warning("⏹ Generation stopped. Any completed results are shown below.")
+        if not results_container:
+            st.stop()
+
+    if error_container:
+        st.session_state.generating = False
+        st.error(f"Error: {error_container[0]}")
+        st.stop()
+
+    all_keywords = results_container[0] if results_container else []
+    if not all_keywords:
+        st.session_state.generating = False
+        st.warning("No keywords were generated. Please try again.")
+        st.stop()
 
     st.session_state.generating = False
     st.success(f"✅ {len(all_keywords)} keywords generated!")
@@ -437,7 +467,7 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     m1.metric("Total", len(all_keywords))
     m2.metric("Branded", branded_n)
     m3.metric("Generic", generic_n)
-    m4.metric("Total volume" if semrush_key else "Confirmed",
+    m4.metric("Total volume" if dfs_login and dfs_password else "Confirmed",
               f"{total_vol:,}" if dfs_login and dfs_password else confirmed_n)
     st.divider()
 
