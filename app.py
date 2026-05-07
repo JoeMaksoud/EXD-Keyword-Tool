@@ -327,11 +327,11 @@ else:
         {"code":"action",        "title":"Action",        "desc":"Help me find... / Give me a list of..."},
     ]
     if "selected_intent" not in st.session_state:
-        st.session_state.selected_intent = "informational"
+        st.session_state.selected_intent = ["informational"]
     intent_cols = st.columns(4)
     for i, intent in enumerate(INTENTS):
         with intent_cols[i]:
-            is_active = st.session_state.selected_intent == intent["code"]
+            is_active = intent["code"] in st.session_state.selected_intent
             border = "#f97316" if is_active else "#333"
             tick = " ✓" if is_active else ""
             st.markdown(f"""<div style="background:#1e1e1e;border:1.5px solid {border};
@@ -347,7 +347,11 @@ else:
                 padding:4px !important; width:100% !important;
             }}</style>""", unsafe_allow_html=True)
             if st.button("Select", key=f"intent_{intent['code']}"):
-                st.session_state.selected_intent = intent["code"]
+                if intent["code"] in st.session_state.selected_intent:
+                    if len(st.session_state.selected_intent) > 1:
+                        st.session_state.selected_intent.remove(intent["code"])
+                else:
+                    st.session_state.selected_intent.append(intent["code"])
                 st.rerun()
 
 # SECTION 4
@@ -461,7 +465,7 @@ if generate:
 
     # ── PROMPTS MODE ─────────────────────────────────────────────
     if st.session_state.mode == "prompts":
-        intent_code  = st.session_state.get("selected_intent", "informational")
+        intent_codes = st.session_state.get("selected_intent", ["informational"])
         seed_note    = f" Must include these seed prompts: {', '.join(seed_items)}." if seed_items else ""
 
         INTENT_INSTRUCTIONS = {
@@ -471,9 +475,7 @@ if generate:
             "action":         "Generate ACTION prompts — requests like 'Help me find', 'Give me a list of', 'Where can I buy', 'Show me options for'. These are task-oriented prompts seeking specific outcomes.",
         }
 
-        AI_PLATFORMS = ["ChatGPT", "Gemini", "Perplexity", "Claude", "General"]
-
-        def generate_prompts_for_language(lang_name):
+        def generate_prompts_for_language(lang_name, intent_code):
             prompt = f"""You are an AI search strategist. Client: "{client_name}", market: "{market_label}".{web_note}
 Tags to assign (from client's website nav): {tags}.
 
@@ -493,22 +495,26 @@ Return ONLY a raw JSON array, no markdown, no explanation:
             response = genai_client.models.generate_content(model="gemini-2.5-flash-lite", contents=prompt)
             match    = re.search(r'\[[\s\S]*\]', response.text)
             if not match:
-                raise ValueError(f"Could not parse response for {lang_name}")
+                raise ValueError(f"Could not parse response for {lang_name} / {intent_code}")
             items = json.loads(match.group())
             for item in items:
                 item["language"] = lang_name
                 item["combined"] = f"{item['prompt']}, {item['intent']}, {item['tag']}"
             return items
 
-        all_prompts = []
-        for li, lang in enumerate(selected_lang_obj):
-            with st.spinner(f"⏳ Generating {lang['name']} prompts ({li+1}/{len(selected_lang_obj)})..."):
-                try:
-                    all_prompts.extend(generate_prompts_for_language(lang["name"]))
-                except Exception as e:
-                    st.session_state.generating = False
-                    st.error(f"Error for {lang['name']}: {str(e)}")
-                    st.stop()
+        all_prompts  = []
+        total_runs   = len(selected_lang_obj) * len(intent_codes)
+        run_count    = 0
+        for lang in selected_lang_obj:
+            for intent_code in intent_codes:
+                run_count += 1
+                with st.spinner(f"⏳ Generating {lang['name']} / {intent_code} prompts ({run_count}/{total_runs})..."):
+                    try:
+                        all_prompts.extend(generate_prompts_for_language(lang["name"], intent_code))
+                    except Exception as e:
+                        st.session_state.generating = False
+                        st.error(f"Error for {lang['name']} / {intent_code}: {str(e)}")
+                        st.stop()
 
         st.session_state.generating = False
         selected_lang_names = [l["name"] for l in LANGUAGES if l["code"] in st.session_state.selected_langs]
@@ -518,7 +524,7 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         m1, m2, m3 = st.columns(3)
         m1.metric("Total prompts", len(all_prompts))
         m2.metric("Languages", len(selected_lang_obj))
-        m3.metric("Intent", intent_code.title())
+        m3.metric("Intents", ", ".join(i.title() for i in intent_codes))
         st.divider()
 
         import pandas as pd
@@ -562,14 +568,14 @@ Return ONLY a raw JSON array, no markdown, no explanation:
         thin=Side(style="thin",color="E0E0E0"); border=Border(left=thin,right=thin,top=thin,bottom=thin)
 
         wsp.merge_cells("A1:G1"); t=wsp["A1"]
-        t.value=f"AI Prompt Research — {client_name} | {market_label} | {intent_code.title()}"
+        t.value=f"AI Prompt Research — {client_name} | {market_label} | {', '.join(i.title() for i in intent_codes)}"
         t.font=Font(name="Calibri",bold=True,size=13,color=WHITE)
         t.fill=PatternFill("solid",fgColor=DARK)
         t.alignment=Alignment(horizontal="left",vertical="center",indent=1)
         wsp.row_dimensions[1].height=30
 
         wsp.merge_cells("A2:G2"); meta=wsp["A2"]
-        meta.value=f"Generated {datetime.now().strftime('%d %b %Y')}  |  {intent_code} intent  |  {len(all_prompts)} prompts  |  {', '.join(selected_lang_names)}"
+        meta.value=f"Generated {datetime.now().strftime('%d %b %Y')}  |  {', '.join(intent_codes)} intent  |  {len(all_prompts)} prompts  |  {', '.join(selected_lang_names)}"
         meta.font=Font(name="Calibri",size=10,color="888888")
         meta.fill=PatternFill("solid",fgColor="F0F0F0")
         meta.alignment=Alignment(horizontal="left",vertical="center",indent=1)
