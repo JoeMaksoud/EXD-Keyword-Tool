@@ -474,79 +474,75 @@ Return ONLY a raw JSON array, no markdown, no explanation:
                     all_keywords[i]["volume"] = None
                     zero_kws.append(i)
 
-            # Handle zero-volume keywords — keep retrying until SV found or max attempts reached
+            # Handle zero-volume keywords in parallel
             if zero_kws:
-                MAX_ATTEMPTS = 5
+                import concurrent.futures
 
-                def get_substitute(keyword, tag, category, lang_name, exclude=[]):
-                    """Ask Gemini for a single alternative keyword with higher search volume"""
-                    exclude_note = f" Do NOT suggest any of these: {', '.join(exclude)}." if exclude else ""
-                    sub_prompt = (
-                        f'The keyword "{keyword}" has zero search volume in {market_label}.{exclude_note} '
-                        f'Suggest 1 alternative keyword that means the same thing and is MORE commonly searched by real users. '
-                        f'Category: {category}, Tag: {tag}, Language: {lang_name}. '
-                        f'Return ONLY a JSON array with 1 string: ["alternative keyword"]'
-                    )
-                    try:
-                        r = genai_client.models.generate_content(model="gemini-2.5-flash-lite", contents=sub_prompt)
-                        m = re.search(r'\[[\s\S]*?\]', r.text)
-                        result = json.loads(m.group()) if m else []
-                        return result[0].strip() if result else None
-                    except:
-                        return None
+                DFS_LANG_MAP_LOCAL = {
+                    "English":"English","Arabic":"Arabic","French":"French",
+                    "German":"German","Hindi":"Hindi",
+                    "Chinese (Simplified)":"Chinese (Simplified)","Japanese":"Japanese"
+                }
 
-                def fetch_single_volume(keyword, lang_name):
-                    """Fetch volume for a single keyword"""
-                    try:
-                        dfs_lang = {"English":"English","Arabic":"Arabic","French":"French",
-                                    "German":"German","Hindi":"Hindi",
-                                    "Chinese (Simplified)":"Chinese (Simplified)","Japanese":"Japanese"}.get(lang_name, "English")
-                        payload = [{"keywords": [keyword], "location_name": dfs_location, "language_name": dfs_lang}]
-                        res = requests.post(
-                            "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
-                            headers=dfs_headers, json=payload, timeout=15)
-                        items = res.json().get("tasks", [{}])[0].get("result", []) or []
-                        for item in items:
-                            if item.get("keyword") == keyword:
-                                vol = item.get("search_volume")
-                                return vol if vol is not None else None
-                    except:
-                        return None
+                def resolve_zero_keyword(orig_i):
+                    kw    = all_keywords[orig_i]
+                    tried = [kw["keyword"]]
+                    for attempt in range(3):
+                        # Ask Gemini for a substitute
+                        exclude_note = f" Do NOT suggest: {', '.join(tried)}." if tried else ""
+                        sub_prompt = (
+                            f'Keyword "{kw["keyword"]}" has zero search volume in {market_label}.{exclude_note} '
+                            f'Suggest 1 more commonly searched alternative with same meaning. '
+                            f'Category: {kw["category"]}, Tag: {kw["tag"]}, Language: {kw["language"]}. '
+                            f'Return ONLY: ["alternative"]'
+                        )
+                        try:
+                            r   = genai_client.models.generate_content(model="gemini-2.5-flash-lite", contents=sub_prompt)
+                            m   = re.search(r'\[[\s\S]*?\]', r.text)
+                            sub = json.loads(m.group())[0].strip() if m else None
+                        except:
+                            sub = None
 
-                zero_replaced = 0
-                still_none    = 0
-                replace_placeholder = st.empty()
-
-                for orig_i in zero_kws:
-                    kw        = all_keywords[orig_i]
-                    tried     = [kw["keyword"]]
-                    found     = False
-
-                    for attempt in range(MAX_ATTEMPTS):
-                        replace_placeholder.info(f"🔄 Finding substitute for '{kw['keyword']}' (attempt {attempt+1}/{MAX_ATTEMPTS})...")
-                        sub = get_substitute(kw["keyword"], kw["tag"], kw["category"], kw["language"], exclude=tried)
                         if not sub or sub in tried:
                             continue
                         tried.append(sub)
-                        vol = fetch_single_volume(sub, kw["language"])
-                        if vol and vol > 0:
-                            all_keywords[orig_i]["original_keyword"] = kw["keyword"]
-                            all_keywords[orig_i]["keyword"]  = sub
-                            all_keywords[orig_i]["volume"]   = vol
-                            all_keywords[orig_i]["combined"] = f"{sub}, {kw['category']}, {kw['tag']}"
-                            zero_replaced += 1
-                            found = True
-                            break
 
-                    if not found:
-                        still_none += 1
+                        # Check volume for this substitute
+                        try:
+                            dfs_lang = DFS_LANG_MAP_LOCAL.get(kw["language"], "English")
+                            res = requests.post(
+                                "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
+                                headers=dfs_headers,
+                                json=[{"keywords": [sub], "location_name": dfs_location, "language_name": dfs_lang}],
+                                timeout=15)
+                            items = res.json().get("tasks", [{}])[0].get("result", []) or []
+                            vol   = next((i.get("search_volume") for i in items if i.get("keyword") == sub), None)
+                            if vol and vol > 0:
+                                return orig_i, sub, vol
+                        except:
+                            continue
+                    return orig_i, None, None
 
-                replace_placeholder.empty()
+                with st.spinner(f"🔄 Finding substitutes for {len(zero_kws)} zero-volume keywords..."):
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                        futures = {executor.submit(resolve_zero_keyword, i): i for i in zero_kws}
+                        zero_replaced = 0
+                        still_none    = 0
+                        for future in concurrent.futures.as_completed(futures):
+                            orig_i, sub, vol = future.result()
+                            if sub and vol:
+                                all_keywords[orig_i]["original_keyword"] = all_keywords[orig_i]["keyword"]
+                                all_keywords[orig_i]["keyword"]  = sub
+                                all_keywords[orig_i]["volume"]   = vol
+                                all_keywords[orig_i]["combined"] = f"{sub}, {all_keywords[orig_i]['category']}, {all_keywords[orig_i]['tag']}"
+                                zero_replaced += 1
+                            else:
+                                still_none += 1
 
                 if zero_replaced:
                     st.info(f"ℹ️ {zero_replaced} keyword(s) replaced with higher-volume alternatives.")
                 if still_none:
-                    st.warning(f"⚠️ {still_none} keyword(s) still have no search volume after {MAX_ATTEMPTS} attempts — Google Ads has no data for these queries in this market.")
+                    st.warning(f"⚠️ {still_none} keyword(s) have no Google Ads data in this market.")
 
     st.session_state.generating = False
     st.success(f"✅ {len(all_keywords)} keywords generated!")
